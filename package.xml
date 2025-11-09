@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package format="1">
+  <name>OpenSCAD</name>
+  <version>2.0.0</version>
+  <description>External OpenSCAD Workbench — replacement for legacy OpenSCAD tools.</description>
+  <maintainer email="you@example.com">Keith Sloan</maintainer>
+  <license>LGPL-2.1-or-later</license>
+  <url type="repository">https://github.com/KeithSloan/OpenSCAD_Workbench</url>
+
+  <content>
+    <mod path="freecad/OpenSCAD"/>
+  </content>
+
+  <workbench>OpenSCADWorkbench</workbench>
+</package>
+
