@@ -5,22 +5,23 @@ class OpenSCADWorkbench_Ext(Gui.Workbench):
     """External OpenSCAD Workbench"""
     MenuText = "OpenSCAD_Ext"
     ToolTip = "External replacement for legacy OpenSCAD tools"
-    Icon = ""  # optional, leave empty for now
+    Icon = "OpenSCAD_Ext.svg"
 
     "OpenSCAD workbench object"
 
+    '''
     def __init__(self):
-        self.__class__.Icon = (
-            App.getResourceDir()
-            + "Mod/OpenSCAD/Resources/icons/OpenSCADWorkbench.svg"
-        )
+        # self.__class__.Icon = (
+        #    App.getResourceDir()
+        #    + "Mod/OpenSCAD/Resources/icons/OpenSCADWorkbench.svg"
+        #)
         self.__class__.MenuText = "OpenSCAD"
         self.__class__.ToolTip = (
             "OpenSCAD is an application for creating solid 3D CAD.\n"
             "FreeCAD utizes OpenSCAD's capability as a script-only based modeller that uses its own description language\n"
             "Note: the Mesh workbench heavily uses the boolean operations of this workbench because they are quite robust"
         )
-
+    '''
 
     def Initialize(self):
         def QT_TRANSLATE_NOOP(scope, text):
@@ -138,7 +139,7 @@ class OpenSCADWorkbench_Ext(Gui.Workbench):
         '''
         Gui.addIconPath(":/icons")
         Gui.addLanguagePath(":/translations")
-        Gui.addPreferencePage(":/ui/openscadprefs-base.ui", "OpenSCAD")
+        #Gui.addPreferencePage(":/ui/openscadprefs-base.ui", "OpenSCAD")
 
     def Activated(self):
         App.Console.PrintMessage("✅ OpenSCADWorkbench_Ext.Activated()\n")

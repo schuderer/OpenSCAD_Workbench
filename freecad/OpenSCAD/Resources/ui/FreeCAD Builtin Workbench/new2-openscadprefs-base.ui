@@ -65,6 +65,67 @@
         </item>
        </layout>
       </item>
+        <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="fclabel">
+          <property name="text">
+           <string>OpenSCAD External Editor</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui::preffilechooser" native="true">
+          <property name="minimumSize">
+           <size>
+            <width>300</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>The path to the OpenSCAD executable</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>openscadExternalEditor</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>Mod/OpenSCAD</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+            <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="fclabel">
+          <property name="text">
+           <string>OpenSCAD Source Directory</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui::preffilechooser" native="true">
+          <property name="minimumSize">
+           <size>
+            <width>300</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>The path to the OpenSCAD executable</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>openscadSourceDir</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>Mod/OpenSCAD</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
      </layout>
     </widget>
    </item>
