@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Gui::Dialog::DlgSettingsOpenSCAD</class>
+ <widget class="QWidget" name="Gui::Dialog::DlgSettingsOpenSCAD">
+  <property name="windowTitle">
+   <string>OpenSCAD Preferences</string>
+  </property>
+  
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>6</number>
+   </property>
+   <property name="leftMargin">
+    <number>9</number>
+   </property>
+   <property name="topMargin">
+    <number>9</number>
+   </property>
+   <property name="rightMargin">
+    <number>9</number>
+   </property>
+   <property name="bottomMargin">
+    <number>9</number>
+   </property>
+
+   <!-- =================== GENERAL SETTINGS =================== -->
+   <item>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>General OpenSCAD Settings</string>
+     </property>
+
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+
+      <!-- OpenSCAD Executable -->
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="fclabel">
+          <property name="text">
+           <string>OpenSCAD executable</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui::preffilechooser" native="true">
+          <property name="minimumSize">
+           <size><width>300</width><height>0</height></size>
+          </property>
+          <property name="toolTip">
+           <string>The path to the OpenSCAD executable</string>
+          </property>
+          <property name="prefEntry">
+           <cstring>openscadexecutable</cstring>
+          </property>
+          <property name="prefPath">
+           <cstring>Mod/OpenSCAD</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <!-- External Editor -->
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_externaleditor">
+        <item>
+         <widget class="QLabel" name="label_external_editor">
+          <property name="text">
+           <string>External Editor</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui_pref_external_editor" native="true">
+          <property name="minimumSize">
+           <size><width>300</width><height>0</height></size>
+          </property>
+          <property name="toolTip">
+           <string>Path to preferred external editor executable</string>
+          </property>
+          <property name="prefEntry">
+           <cstring>externalEditor</cstring>
+          </property>
+          <property name="prefPath">
+           <cstring>Mod/OpenSCAD</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <!-- Default Source Directory -->
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_defaultsource">
+        <item>
+         <widget class="QLabel" name="label_default_source_dir">
+          <property name="text">
+           <string>Default directory for Source</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui_pref_default_source_dir" native="true">
+          <property name="minimumSize">
+           <size><width>300</width><height>0</height></size>
+          </property>
+          <property name="mode">
+           <enum>Gui::FileChooser::Directory</enum>
+          </property>
+          <property name="toolTip">
+           <string>The default directory for saving or reading OpenSCAD source files</string>
+          </property>
+          <property name="prefEntry">
+           <cstring>defaultSourceDirectory</cstring>
+          </property>
+          <property name="prefPath">
+           <cstring>Mod/OpenSCAD</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+     </layout>
+    </widget>
+   </item>
+
+   <!-- =================== IMPORT SETTINGS (FULL ORIGINAL) =================== -->
+   <item>
+    <widget class="QGroupBox" name="groupBox_2">
+     <property name="title">
+      <string>OpenSCAD Import</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
+         <widget class="Gui::PrefCheckBox" name="checkBox">
+          <property name="text">
+           <string>Print debug information in the Console</string>
+          </property>
+          <property name="prefEntry"><cstring>printVerbose</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <item>
+         <widget class="Gui::PrefCheckBox" name="gui::prefcheckboxviewtreeprovider">
+          <property name="toolTip">
+           <string>If this is checked, Features will claim their children in the tree view</string>
+          </property>
+          <property name="text">
+           <string>Use ViewProviders in Tree View</string>
+          </property>
+          <property name="prefEntry"><cstring>useViewProviderTree</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <item>
+         <widget class="Gui::PrefCheckBox" name="gui::prefcheckboxmultmatrixfeature">
+          <property name="toolTip">
+           <string>If this is checked, Multmatrix Object will be Parametric</string>
+          </property>
+          <property name="text">
+           <string>Use Multmatrix Feature</string>
+          </property>
+          <property name="prefEntry"><cstring>useMultmatrixFeature</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <item>
+         <widget class="QLabel" name="label_12">
+          <property name="toolTip">
+           <string>The maximum number of faces of a polygon...</string>
+          </property>
+          <property name="text">
+           <string>Maximum number of faces for polygons (fn)</string>
+          </property>
+         </widget>
+        </item>
+        <item><spacer name="horizontalSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+        <item>
+         <widget class="Gui::PrefSpinBox" name="gui::prefmaxfnsp">
+          <property name="toolTip"><string>The maximum number of faces of a polygon...</string></property>
+          <property name="value"><number>16</number></property>
+          <property name="prefEntry"><cstring>useMaxFN</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item><widget class="QLabel" name="label_6"><property name="text"><string>Send to OpenSCAD via</string></property></widget></item>
+        <item>
+         <widget class="Gui::PrefComboBox" name="guiprefcomboSendVia">
+          <property name="toolTip"><string>The transfer mechanism...</string></property>
+          <property name="prefEntry"><cstring>transfermechanism</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+          <item><property name="text"><string>Standard temp directory</string></property></item>
+          <item><property name="text"><string>User-specified directory</string></property></item>
+          <item><property name="text"><string>stdout pipe (requires OpenSCAD &gt;= 2021.1)</string></property></item>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="transferDirectoryLayout">
+        <item><widget class="QLabel" name="label_7"><property name="text"><string>Transfer directory</string></property></widget></item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="gui::preffilechooser" native="true">
+          <property name="minimumSize"><size><width>300</width><height>0</height></size></property>
+          <property name="mode"><enum>Gui::FileChooser::Directory</enum></property>
+          <property name="toolTip"><string>The path to the directory for transferring files</string></property>
+          <property name="prefEntry"><cstring>transferdirectory</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+     </layout>
+    </widget>
+   </item>
+
+   <!-- =================== EXPORT SETTINGS (FULL ORIGINAL) =================== -->
+   <item>
+    <widget class="QGroupBox" name="groupBox_3">
+     <property name="title">
+      <string>OpenSCAD Export</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_21">
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_21">
+        <item><widget class="QLabel" name="label"><property name="text"><string>Maximum fragment size</string></property></widget></item>
+        <item><spacer name="horizontalSpacer_2"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+
+        <item><widget class="QLabel" name="label_3"><property name="toolTip"><string>Minimum angle</string></property><property name="text"><string>angle (fa)</string></property></widget></item>
+
+        <item>
+         <widget class="Gui::PrefDoubleSpinBox" name="doubleSpinBox_2">
+          <property name="toolTip"><string>Minimum angle for a fragment</string></property>
+          <property name="suffix"><string notr="true">°</string></property>
+          <property name="minimum"><double>0.01</double></property>
+          <property name="maximum"><double>360</double></property>
+          <property name="value"><double>12</double></property>
+          <property name="prefEntry"><cstring>exportFa</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+
+        <item><widget class="Line" name="line_2"><property name="orientation"><enum>Qt::Vertical</enum></property></widget></item>
+
+        <item><widget class="QLabel" name="label_4"><property name="toolTip"><string>Minimum size</string></property><property name="text"><string>size (fs)</string></property></widget></item>
+
+        <item>
+         <widget class="Gui::PrefDoubleSpinBox" name="doubleSpinBox_3">
+          <property name="suffix"><string>mm</string></property>
+          <property name="minimum"><double>0.01</double></property>
+          <property name="maximum"><double>10000</double></property>
+          <property name="value"><double>2</double></property>
+          <property name="prefEntry"><cstring>exportFs</cstring></property>
+          <property name="prefPath"><cstring>Mod/OpenSCAD</cstring></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+
