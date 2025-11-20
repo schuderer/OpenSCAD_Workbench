@@ -1,6 +1,14 @@
-import FreeCADGui as Gui
 import FreeCAD
+FreeCAD.addImportType("Import : CSG (*.csg)","importAltCSG")
+FreeCAD.addImportType("Import : SCAD (*.scad)","importAltCSG")
+FreeCAD.addImportType("Import : ScadFileObject (*.scad)","importFileSCAD")
+FreeCAD.addImportType("Import : DXF via EzDXF (*.dxf)","importAltDXF")
+FreeCAD.addImportType("Import : DXF Object (*.dxf)","importDXFObj")
+#FreeCAD.addImportType("New Importer : DxfFileObject (*.scad)","importFileDXFObj")
+FreeCAD.addExportType("Limited Export : CSG exportCSG (*.csg)","exportAltCSG")
 
+# Worbench diffinition __init__py or init_gui
+# init_gui more logical
 '''
 # --- Step 1: import resources first ---
 from .Resources import resources_rc  # registers icons and UI
