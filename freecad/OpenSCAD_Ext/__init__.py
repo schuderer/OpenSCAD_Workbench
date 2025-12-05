@@ -20,6 +20,10 @@ def setup_importers():
         f"{IMPORTER_BASE}.importAltCSG"
     )
     FreeCAD.addImportType(
+        "External OpenSCAD Workbench : NEW CSG importer (*.csg)",
+        f"{IMPORTER_BASE}.newImportCSG"
+    )
+    FreeCAD.addImportType(
         "SCAD geometry (*.scad)",
         f"{IMPORTER_BASE}.importAltCSG"
     )

@@ -1,5 +1,5 @@
 # csg_parser.py
-# PLY-based CSG parser with FreeCAD integration for BREP/CSG operations.
+# PLY-based CSG parser with FreeCAD integration for BREP/CSG operations including multmatrix.
 
 import FreeCAD
 import Part
@@ -69,6 +69,7 @@ class RawStmt(Node):
 # ----------------------------------------------------
 
 COMPOUND_SET = {"hull", "minkowski"}
+TRANSFORM_SET = {"translate", "rotate", "scale", "multmatrix"}
 
 
 def walk_csg_ast_fc(ast_root, is_brep_convertible, handle_brep_fc, handle_openscad_fc):
@@ -88,6 +89,14 @@ def _walk_node_fc(node, inherited_compound, is_brep_convertible, handle_brep_fc,
             handle_openscad_fc(node)
         return
 
+    # handle transforms including multmatrix
+    if isinstance(node, OpNode) and node.name in TRANSFORM_SET:
+        # Apply transform to all children recursively
+        for c in node.children:
+            _walk_node_fc(c, inherited_compound, is_brep_convertible, handle_brep_fc, handle_openscad_fc)
+        handle_brep_fc(node)
+        return
+
     # non-hull/minkowski
     if isinstance(node, OpNode):
         handle_brep_fc(node)
@@ -97,27 +106,34 @@ def _walk_node_fc(node, inherited_compound, is_brep_convertible, handle_brep_fc,
         handle_brep_fc(node)
 
 # ----------------------------------------------------
-# EXAMPLE FreeCAD BREP HANDLER
+# EXAMPLE FreeCAD BREP HANDLER WITH multmatrix
 # ----------------------------------------------------
 
 def example_handle_brep_fc(node):
-    """Convert OpNode to FreeCAD Part geometry where possible."""
+    """Convert OpNode to FreeCAD Part geometry where possible including multmatrix."""
     doc = FreeCAD.ActiveDocument
+
     if node.name == 'cube':
         size = node.args[0] if node.args else [1,1,1]
         obj = doc.addObject("Part::Box", "Cube")
         obj.Length, obj.Width, obj.Height = size if isinstance(size, list) else [size]*3
-        doc.recompute()
     elif node.name == 'sphere':
         r = node.args[0] if node.args else 1
         obj = doc.addObject("Part::Sphere", "Sphere")
         obj.Radius = r
-        doc.recompute()
-    # additional primitives handled similarly
+    elif node.name == 'multmatrix':
+        # node.args[0] is expected to be 4x4 matrix as list of 16 numbers
+        matrix_vals = node.args[0] if node.args else None
+        for c in node.children:
+            example_handle_brep_fc(c)  # create child object first
+            child_obj = FreeCAD.ActiveDocument.ActiveObject
+            if matrix_vals and len(matrix_vals) == 16:
+                m = FreeCAD.Matrix(*matrix_vals)
+                child_obj.Placement = FreeCAD.Placement(m)
+    doc.recompute()
 
 
 def example_handle_openscad_fc(node):
-    """Fallback: store raw OpenSCAD as string in FreeCAD document or debug output."""
     print(f"OpenSCAD fallback for {node.name}")
     print(node.to_scad())
 
