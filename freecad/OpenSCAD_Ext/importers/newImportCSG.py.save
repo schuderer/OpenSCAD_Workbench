@@ -1,0 +1,240 @@
+# newImportCSG.py
+# FreeCAD OpenSCAD CSG Importer with robust lexer/parser and hull/minkowski support
+
+import FreeCAD
+import Part
+import ply.lex as lex
+import ply.yacc as yacc
+from dataclasses import dataclass, field
+from typing import List, Optional, Any
+
+# ----------------------------------------------------
+# AST DEFINITIONS
+# ----------------------------------------------------
+@dataclass
+class Node:
+    pass
+
+@dataclass
+class Program(Node):
+    statements: List[Node] = field(default_factory=list)
+
+@dataclass
+class OpNode(Node):
+    name: str
+    args: List[Any] = field(default_factory=list)
+    children: List[Node] = field(default_factory=list)
+    lineno: int = 0
+    parent: Optional[Node] = None
+    top_level_compound: bool = False
+
+    def to_scad(self, indent=0):
+        pad = "  " * indent
+        args_s = ", ".join(map(self._arg_to_scad, self.args))
+        if self.children:
+            body = "\n".join(
+                c.to_scad(indent + 1) if isinstance(c, OpNode) else str(c)
+                for c in self.children
+            )
+            return f"{pad}{self.name}({args_s}) {{\n{body}\n{pad}}}"
+        return f"{pad}{self.name}({args_s});"
+
+    def _arg_to_scad(self, a):
+        if isinstance(a, str):
+            return f'"{a}"'
+        if isinstance(a, tuple):
+            k, v = a
+            if isinstance(v, str):
+                return f"{k}='{v}'"
+            return f"{k}={v}"
+        if isinstance(a, list):
+            return "[" + ", ".join(map(str, a)) + "]"
+        return str(a)
+
+@dataclass
+class RawStmt(Node):
+    text: str
+    lineno: int = 0
+    parent: Optional[Node] = None
+
+    def to_scad(self, indent=0):
+        return ("  " * indent) + self.text
+
+# ----------------------------------------------------
+# LEXER
+# ----------------------------------------------------
+tokens = (
+    'NUMBER', 'IDENT', 'DOLLAR_IDENT',
+    'LPAREN','RPAREN','LBRACE','RBRACE','LBRACKET','RBRACKET',
+    'COMMA','SEMI','EQUALS'
+)
+
+t_LPAREN    = r'\('
+t_RPAREN    = r'\)'
+t_LBRACE    = r'\{'
+t_RBRACE    = r'\}'
+t_LBRACKET  = r'\['
+t_RBRACKET  = r'\]'
+t_COMMA     = r','
+t_SEMI      = r';'
+t_EQUALS    = r'='
+t_ignore    = ' \t'
+
+def t_DOLLAR_IDENT(t):
+    r'\$[A-Za-z_][A-Za-z0-9_]*'
+    return t
+
+def t_IDENT(t):
+    r'[A-Za-z_][A-Za-z0-9_]*'
+    return t
+
+def t_NUMBER(t):
+    r'-?\d+(\.\d+)?'
+    t.value = float(t.value)
+    return t
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+
+def t_error(t):
+    FreeCAD.Console.PrintError(f"Illegal character '{t.value[0]}' at line {t.lexer.lineno}\n")
+    t.lexer.skip(1)
+
+lexer = lex.lex()
+
+# ----------------------------------------------------
+# PARSER
+# ----------------------------------------------------
+def p_program(p):
+    """program : stmt_list"""
+    p[0] = Program(statements=p[1])
+
+def p_stmt_list(p):
+    """stmt_list : stmt_list stmt
+                 | stmt"""
+    if len(p) == 3:
+        p[0] = p[1] + [p[2]]
+    else:
+        p[0] = [p[1]]
+
+def p_stmt(p):
+    """stmt : operation SEMI
+            | operation"""
+    p[0] = p[1]
+
+def p_operation(p):
+    """operation : IDENT LPAREN arg_list RPAREN LBRACE stmt_list RBRACE
+                 | IDENT LPAREN arg_list RPAREN"""
+    if len(p) == 8:
+        p[0] = OpNode(name=p[1], args=p[3], children=p[6], lineno=p.lineno(1))
+    else:
+        p[0] = OpNode(name=p[1], args=p[3], children=[], lineno=p.lineno(1))
+
+def p_arg_list(p):
+    """arg_list : arg_list COMMA arg
+                | arg
+                | empty"""
+    if len(p) == 4:
+        p[0] = p[1] + [p[3]]
+    elif len(p) == 2 and p[1] is not None:
+        p[0] = [p[1]]
+    else:
+        p[0] = []
+
+def p_arg(p):
+    """arg : NUMBER
+           | IDENT
+           | DOLLAR_IDENT
+           | LBRACKET arg_list RBRACKET"""
+    if len(p) == 2:
+        p[0] = p[1]
+    else:
+        p[0] = p[2]  # list inside brackets
+
+def p_empty(p):
+    'empty :'
+    pass
+
+def p_error(p):
+    if p:
+        FreeCAD.Console.PrintError(f"Parse error at '{p.value}' line {p.lineno}\n")
+    else:
+        FreeCAD.Console.PrintError("Parse error at EOF\n")
+
+parser = yacc.yacc()
+
+# ----------------------------------------------------
+# AST WALKER FOR FreeCAD
+# ----------------------------------------------------
+COMPOUND_SET = {"hull", "minkowski"}
+TRANSFORM_SET = {"translate", "rotate", "scale", "multmatrix"}
+
+def walk_csg_ast_fc(ast_root, is_brep_convertible, handle_brep_fc, handle_openscad_fc):
+    for stmt in ast_root.statements:
+        _walk_node_fc(stmt, None, is_brep_convertible, handle_brep_fc, handle_openscad_fc)
+
+def _walk_node_fc(node, inherited_compound, is_brep_convertible, handle_brep_fc, handle_openscad_fc):
+    is_compound = isinstance(node, OpNode) and node.name in COMPOUND_SET
+
+    if is_compound:
+        if is_brep_convertible(node):
+            for c in node.children:
+                _walk_node_fc(c, True, is_brep_convertible, handle_brep_fc, handle_openscad_fc)
+        else:
+            handle_openscad_fc(node)
+        return
+
+    if isinstance(node, OpNode) and node.name in TRANSFORM_SET:
+        for c in node.children:
+            _walk_node_fc(c, inherited_compound, is_brep_convertible, handle_brep_fc, handle_openscad_fc)
+        handle_brep_fc(node)
+        return
+
+    if isinstance(node, OpNode):
+        handle_brep_fc(node)
+        for c in node.children:
+            _walk_node_fc(c, False, is_brep_convertible, handle_brep_fc, handle_openscad_fc)
+    else:
+        handle_brep_fc(node)
+
+# ----------------------------------------------------
+# EXAMPLE FreeCAD BREP HANDLERS
+# ----------------------------------------------------
+def example_handle_brep_fc(node):
+    doc = FreeCAD.ActiveDocument
+    if node.name == 'cube':
+        size = node.args[0] if node.args else [1,1,1]
+        obj = doc.addObject("Part::Box", "Cube")
+        obj.Length, obj.Width, obj.Height = size if isinstance(size, list) else [size]*3
+    elif node.name == 'sphere':
+        r = node.args[0] if node.args else 1
+        obj = doc.addObject("Part::Sphere", "Sphere")
+        obj.Radius = r
+    elif node.name == 'multmatrix':
+        matrix_vals = node.args[0] if node.args else None
+        for c in node.children:
+            example_handle_brep_fc(c)
+            child_obj = FreeCAD.ActiveDocument.ActiveObject
+            if matrix_vals and len(matrix_vals) == 16:
+                m = FreeCAD.Matrix(*matrix_vals)
+                child_obj.Placement = FreeCAD.Placement(m)
+    doc.recompute()
+
+def example_handle_openscad_fc(node):
+    FreeCAD.Console.PrintMessage(f"OpenSCAD fallback for {node.name}\n")
+    FreeCAD.Console.PrintMessage(node.to_scad() + "\n")
+
+# ----------------------------------------------------
+# FILE IMPORT ENTRY
+# ----------------------------------------------------
+import builtins
+
+def open(path):
+    if not path:
+        raise ValueError("No file path provided")
+    with builtins.open(path) as f:  # force built-in
+        data = f.read()
+    ast_root = parser.parse(data, lexer=lexer)
+    return ast_root
+
