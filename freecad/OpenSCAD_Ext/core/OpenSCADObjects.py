@@ -215,14 +215,12 @@ def parse(obj, src):
 
 
 class SCADBase:
-    def __init__(self, obj, filename, mode='Brep', fnmax=16, timeout=30, keep=False):
+    def __init__(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
         super().__init__()
-        print(f"SCADBase {mode}")
-        obj.addProperty("App::PropertyFile","source","OpenSCAD","OpenSCAD source")
-        obj.source = obj.Label+".scad"
-        obj.setEditorMode("source",1)
+        obj.addProperty("App::PropertyString","scadName","OpenSCAD","OpenSCAD scadObject")
+        obj.setEditorMode("scadName",1)
         obj.addProperty("App::PropertyFile","sourceFile","OpenSCAD","OpenSCAD source")
-        obj.sourceFile = filename
+        obj.sourceFile = sourceFile
         # Set in SCADObject
         #obj.setEditorMode("sourceFile",2)
         obj.addProperty("App::PropertyString","message","OpenSCAD","OpenSCAD message")

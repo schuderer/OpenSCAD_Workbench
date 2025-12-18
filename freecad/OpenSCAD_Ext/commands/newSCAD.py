@@ -5,16 +5,14 @@ from PySide import QtCore
 from PySide import QtGui
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
-from freecad.OpenSCAD_Ext.core.OpenSCADObjects import SCADBase
+from freecad.OpenSCAD_Ext.core.OpenSCADObjects import SCADBase, ViewSCADProvider
 
 
 ###  Change for SCAD file location
 
-class FileNameValue(QtGui.QWidget):
-    def __init__(self, label="SCADFileName", default="", parent=None, fileFilter="*.scad"):
-        super(FileNameValue, self).__init__(parent)
-
-        #self.fileFilter = fileFilter
+class EditTextValue(QtGui.QWidget):
+    def __init__(self, label="", default="", parent=None):
+        super(EditTextValue, self).__init__(parent)
 
         layout = QtGui.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -22,14 +20,14 @@ class FileNameValue(QtGui.QWidget):
         self.label = QtGui.QLabel(label)
         layout.addWidget(self.label)
 
-        self.fileName = QtGui.QLineEdit(default)
-        self.fileName.setPlaceholderText("Enter filename")
-        layout.addWidget(self.fileName, 1)
-        self.fileName.editingFinished.connect(self.getVal)
+        self.textName = QtGui.QLineEdit(default)
+        #self.textName.setPlaceholderText(default"Enterfilename")
+        layout.addWidget(self.textName, 1)
+        self.textName.editingFinished.connect(self.getVal)
         self.show()
 
     def getVal(self):
-        return self.fileName.text()
+        return self.textName.text()
 
 class GeometryType(QtGui.QWidget):
         def __init__(self):
@@ -80,9 +78,9 @@ class BooleanValue(QtGui.QWidget):
 			return False
 
 class OpenSCADeditOptions(QtGui.QDialog):
-    def __init__(self, parent=None, filename=""):
+    def __init__(self, parent=None, scadName="SCAD_Object"):
         super(OpenSCADeditOptions, self).__init__(parent)
-        self.filename = filename
+        self.scadNname = scadName
         self.initUI()
 
     def initUI(self):
@@ -95,8 +93,8 @@ class OpenSCADeditOptions(QtGui.QDialog):
         self.setMouseTracking(True)
 
         # ---------- Options ----------
-        self.scadFileName = FileNameValue()
-        self.layout.addWidget(self.scadFileName)
+        self.scadName = EditTextValue(label="SCADname",default="SCADname")
+        self.layout.addWidget(self.scadName)
         self.geometryType = GeometryType()
         self.layout.addWidget(self.geometryType)
         self.fnMax = IntegerValue("FnMax", 16)
@@ -122,7 +120,7 @@ class OpenSCADeditOptions(QtGui.QDialog):
 
     def getValues(self):
         return(
-              self.scadFileName.getVal(), \
+              self.scadName.getVal(), \
               self.geometryType.getVal(), \
               self.fnMax.getVal(), \
               self.timeOut.getVal(), \
@@ -137,7 +135,9 @@ class OpenSCADeditOptions(QtGui.QDialog):
         self.result = 'ok'
         #QtGui.QGuiApplication.restoreOverrideCursor()
 
-class NewSCADFile_Class:
+from freecad.OpenSCAD_Ext.commands.Params import BaseParams
+
+class NewSCADFile_Class(BaseParams):
     """Create a new SCAD file Object """
     def GetResources(self):
         return {
@@ -147,6 +147,7 @@ class NewSCADFile_Class:
         }
 
     def Activated(self):
+        import os
         FreeCAD.Console.PrintMessage("New SCAD File Object executed\n")
         FreeCAD.Console.PrintError("New SCAD File Object executed\n")
         write_log("Info", "New SCAD File Object executed")
@@ -163,11 +164,17 @@ class NewSCADFile_Class:
                 # Create SCAD Object
                 obj = FreeCAD.ActiveDocument.addObject("Part::FeaturePython", options[0])
                 #
-                #scadObj = SCADBase(obj, filename, mode='Mesh', fnmax=16, timeout=30)
+                #scadObj = SCADBase(obj, scadName, sourcefile, mode='Mesh', fnmax=16, timeout=30)
                 # change SCADBase to accept single options call ?
                 #
-                scadObj = SCADBase(obj, filename, options[1], \
-                        options[2], options[3], options[4])
+                scadName = options[0]
+                sourceFile = os.path.join(self.getSourceDirectory(), scadName)
+                scadObj = SCADBase(obj, scadName, sourceFile, \
+                          options[1], \
+                          options[2], \
+                          options[3], \
+                          options[4], \
+                          )
                 ViewSCADProvider(obj.ViewObject)
 
                 #if hasattr(obj, 'Proxy'):
@@ -184,36 +191,19 @@ class NewSCADFile_Class:
     def IsActive(self):
         return True
 
-    def isValidFilePath(path):
-        if not path:
-           return False
+    def getSourceDirectory(self):
+        return self.scadSourcePath
 
-        if not isinstance(path, str):
-           return False
 
-        # Expand ~ and environment variables
-        path = os.path.expandvars(os.path.expanduser(path))
 
-        # Must exist and be a file
-        return os.path.isfile(path)
-
-    def editFile(self, fname):
+    def editFile(self, scadName):
         import subprocess,  os, sys
-        editorPathName = FreeCAD.ParamGet(\
-            "User parameter:BaseApp/Preferences/Mod/OpenSCAD").GetString('externalEditor')  
-        write_log("Info", f"Path to external editor {editorPathName}")
-        if not isValidFilePath(editorPathName):
-            FreeCAD.Console.PrintError(
-                "External editor path is not set or invalid\n"
-            )
-            return
-
-        write_log("Info", f"Launching editor: {editorPathName} {fname}")
+        scadPath = os.join(self.scadSourcePathName, scadName)
         p1 = subprocess.Popen( \
              [editorPathName, fname], \
              stdin=subprocess.PIPE,\
              stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        write_log("Info", f"Launching editor: {editorPathName} {fname}")
+        write_log("Info", f"Launching editor: {self.editorPathName} {scadPath}")
 
 FreeCADGui.addCommand("NewSCADFileObject_CMD", NewSCADFile_Class())
 
