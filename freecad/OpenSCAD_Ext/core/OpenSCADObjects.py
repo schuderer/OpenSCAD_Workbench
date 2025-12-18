@@ -218,6 +218,7 @@ class SCADBase:
     def __init__(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
         super().__init__()
         obj.addProperty("App::PropertyString","scadName","OpenSCAD","OpenSCAD scadObject")
+        obj.scadName = scadName
         obj.setEditorMode("scadName",1)
         obj.addProperty("App::PropertyFile","sourceFile","OpenSCAD","OpenSCAD source")
         obj.sourceFile = sourceFile
