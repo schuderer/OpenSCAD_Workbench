@@ -132,7 +132,7 @@ class OpenSCADeditOptions(QtGui.QDialog):
         self.result = 'ok'
         #QtGui.QGuiApplication.restoreOverrideCursor()
 
-from freecad.OpenSCAD_Ext.commands.Params import BaseParams
+from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
 
 class NewSCADFile_Class(BaseParams):
     """Create a new SCAD file Object """
@@ -146,45 +146,45 @@ class NewSCADFile_Class(BaseParams):
     def Activated(self):
         import os
         FreeCAD.Console.PrintMessage("New SCAD File Object executed\n")
-        FreeCAD.Console.PrintError("New SCAD File Object executed\n")
         write_log("Info", "New SCAD File Object executed")
         QtGui.QGuiApplication.setOverrideCursor(QtGui.Qt.ArrowCursor)
         dialog = OpenSCADeditOptions()
         result = dialog.exec_()
         QtGui.QGuiApplication.restoreOverrideCursor()
-        if result == QtGui.QDialog.Accepted:
-                write_log("Info",f"Result {dialog.result}")
-                write_log("Info",f"Action")
-                options = dialog.getValues()
-                write_log("Info",f"Options {options}")
+        if result != QtGui.QDialog.Accepted:
+             pass
+        write_log("Info",f"Result {dialog.result}")
+        write_log("Info",f"Action")
+        options = dialog.getValues()
+        write_log("Info",f"Options {options}")
 
-                # Create SCAD Object
-                obj = FreeCAD.ActiveDocument.addObject("Part::FeaturePython", options[0])
-                #
-                #scadObj = SCADBase(obj, scadName, sourcefile, mode='Mesh', fnmax=16, timeout=30)
-                # change SCADBase to accept single options call ?
-                #
-                scadName = options[0]
-                sourceFile = os.path.join(self.getSourceDirectory(), scadName)
-                scadObj = SCADBase(obj, scadName, sourceFile, \
-                          options[1], \
-                          options[2], \
-                          options[3], \
-                          options[4], \
-                          )
-                ViewSCADProvider(obj.ViewObject)
-                self.editFile(sourceFile)
+        # Create SCAD Object
+        obj = FreeCAD.ActiveDocument.addObject("Part::FeaturePython", options[0])
+        #
+        #scadObj = SCADBase(obj, scadName, sourcefile, mode='Mesh', fnmax=16, timeout=30)
+        # change SCADBase to accept single options call ?
+        #
+        scadName = options[0]
+        sourceFile = os.path.join(self.getSourceDirectory(), scadName)
+        scadObj = SCADBase(obj, scadName, sourceFile, \
+                  options[1], \
+                  options[2], \
+                  options[3], \
+                  options[4], \
+                  )
+        ViewSCADProvider(obj.ViewObject)
+        self.editFile(sourceFile)
 
-                #if hasattr(obj, 'Proxy'):
-                   #filename = "New_File"
-                   #obj = doc.addObject("Part::FeaturePython", filename)
-                   #
-                   #scadObj = SCADBase(obj, filename, mode='Mesh', fnmax=16, timeout=30)
-                   # change SCADBase to accept single options call ?
-                   #
-                   #scadObj = SCADBase(obj, filename, options[1], \
-                   #                options[2], options[3], options[4])
-                   #        ViewSCADProvider(obj.ViewObject)
+        #if hasattr(obj, 'Proxy'):
+        #filename = "New_File"
+        ##obj = doc.addObject("Part::FeaturePython", filename)
+        #
+        #scadObj = SCADBase(obj, filename, mode='Mesh', fnmax=16, timeout=30)
+        # change SCADBase to accept single options call ?
+        #
+        #scadObj = SCADBase(obj, filename, options[1], \
+        #                options[2], options[3], options[4])
+        #        ViewSCADProvider(obj.ViewObject)
 
     def IsActive(self):
         return True
@@ -192,16 +192,6 @@ class NewSCADFile_Class(BaseParams):
 
     def getSourceDirectory(self):
         return self.scadSourcePath
-
-
-    def editFile(self, scadPath):
-        #scadPath = os.join(self.scadDirectory, scadName)
-        import subprocess,  os, sys
-        p1 = subprocess.Popen( \
-             [self.editorPathName, scadPath], \
-             stdin=subprocess.PIPE,\
-             stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        write_log("Info", f"Launching editor: {self.editorPathName} {scadPath}")
 
 FreeCADGui.addCommand("NewSCADFileObject_CMD", NewSCADFile_Class())
 

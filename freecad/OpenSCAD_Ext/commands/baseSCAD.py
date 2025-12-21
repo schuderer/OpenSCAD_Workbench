@@ -46,3 +46,14 @@ class BaseParams:
         path = os.path.expanduser(os.path.expandvars(path))
 
         return os.path.isdir(path)
+
+
+    def editFile(self, scadPath):
+        #scadPath = os.join(self.scadDirectory, scadName)
+        import subprocess,  os, sys
+        p1 = subprocess.Popen( \
+             [self.editorPathName, scadPath], \
+             stdin=subprocess.PIPE,\
+             stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        write_log("Info", f"Launching editor: {self.editorPathName} {scadPath}")
+
