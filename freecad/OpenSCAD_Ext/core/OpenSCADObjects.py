@@ -22,21 +22,25 @@
 #*                                                                         *
 #***************************************************************************
 
-import FreeCAD, FreeCADGui, Part, Mesh, OpenSCADUtils
+import FreeCAD, FreeCADGui, Part, Mesh
 import os, sys, tempfile
+
+from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
+from freecad.OpenSCAD_Ext.core.OpenSCADUtils import callopenscad, \
+                                               OpenSCADError
 
 # Shared between SCADObject and SCADModule
 def createMesh(srcObj, wrkSrc):
     print(f"Create Mesh {srcObj.Name} {wrkSrc}")
     try:
-        print(f"Source : {srcObj.source}")
+        print(f"Source : {srcObj.scadName}")
         print(f"SourceFile : {srcObj.sourceFile}")
         tmpDir = tempfile.gettempdir()
         tmpOutFile = os.path.join(tmpDir, srcObj.Name+'.stl')
         print(f"Call OpenSCAD")
         print(f"Input file {wrkSrc}")
         print(f"Output file {tmpOutFile}")
-        tmpFileName=OpenSCADUtils.callopenscad(wrkSrc, \
+        tmpFileName=callopenscad(wrkSrc, \
             outputfilename=tmpOutFile, outputext='stl', \
             timeout=int(srcObj.timeout))
         if os.path.exists(tmpFileName): # If Timeout no file
@@ -53,7 +57,7 @@ def createMesh(srcObj, wrkSrc):
             shape.makeShapeFromMesh(mesh.Topology, 0.1)
             return shape
 
-    except OpenSCADUtils.OpenSCADError as e:
+    except OpenSCADError as e:
         #print(f"OpenSCADError {e} {e.value}")
         before = e.value.split('in file',1)[0]
         print(f"Before : {before}")
@@ -71,26 +75,26 @@ def createMesh(srcObj, wrkSrc):
 def createBrep(srcObj, tmpDir, wrkSrc):
 	from importAltCSG import  processCSG
 
-	print(f"Create Brep {srcObj.source} {srcObj.fnmax}")
+	print(f"Create Brep {srcObj.scadName} {srcObj.fnmax}")
 	actDoc = FreeCAD.activeDocument().Name
 	print(f"Active Document {actDoc}")
 	wrkDoc = FreeCAD.newDocument("work")
 	try:
-		print(f"Source : {srcObj.source}")
+		print(f"Source : {srcObj.scadName}")
 		print(f"SourceFile : {srcObj.sourceFile}")
 		print(wrkDoc)
 		csgOutFile = os.path.join(tmpDir, srcObj.Name+'.csg')
 		brepOutFile = os.path.join(tmpDir, srcObj.Name+'.brep')
 		print(f"Call OpenSCAD to create csg file from scad")
-		tmpFileName=OpenSCADUtils.callopenscad(wrkSrc, \
+		tmpFileName=callopenscad(wrkSrc, \
 			outputfilename=csgOutFile, outputext='csg', \
 			timeout=int(srcObj.timeout))
 		if hasattr(srcObj, "source"):
-			source = srcObj.source
+			source = srcObj.scadName
 		if hasattr(srcObj, "sourceFile"):
 			source = srcObj.sourceFile
 		global pathName    
-		pathName = os.path.dirname(os.path.normpath(source))
+		pathName = os.path.dirname(os.path.normpath(scadName))
 		print(f"Process CSG File name path {pathName} file {tmpFileName}")
 		#processCSG(wrkDoc, pathName, tmpFileName, srcObj.fnmax)
 		processCSG(wrkDoc, tmpFileName, srcObj.fnmax)
@@ -130,7 +134,7 @@ def createBrep(srcObj, tmpDir, wrkSrc):
 		return retShape
 		#return retObj
 
-	except OpenSCADUtils.OpenSCADError as e:
+	except OpenSCADError as e:
 		#print(f"OpenSCADError {e} {e.value}")
 		before = e.value.split('in file',1)[0]
 		print(f"Before : {before}")
@@ -214,7 +218,7 @@ def parse(obj, src):
     #obj.setEditorMode("text",2)
 
 
-class SCADBase:
+class SCADfileBase:
     def __init__(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
         super().__init__()
         obj.addProperty("App::PropertyString","scadName","OpenSCAD","OpenSCAD scadObject")
@@ -289,6 +293,14 @@ class SCADBase:
         print(f"execute")
 
 
+    # use name render for new workbench
+    # redirect for compatibility with old Alternate
+    #
+    def renderFunction(self, obj):
+        write_log("Info","Render Function")
+        self.executeFunction(obj)
+
+
     def executeFunction(self, obj):
         from timeit import default_timer as timer
         print(f"Execute {obj.Name} Mode {obj.mode} keepWork {obj.keep_work_doc}")
@@ -343,21 +355,21 @@ class SCADBase:
         fps.close()
 
 
-    def editFile(self, fname):
-        import FreeCAD
-        import subprocess,  os, sys
-        editorPathName = FreeCAD.ParamGet(\
-            "User parameter:BaseApp/Preferences/Mod/OpenSCAD").GetString('externalEditor')
-        print(f"Path to external editor {editorPathName}")
-        # ToDo : Check pathname valid
-        if editorPathName != "":
-            p1 = subprocess.Popen( \
-                [editorPathName, fname], \
-                stdin=subprocess.PIPE,\
-                stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-
-        else:
-            print(f"External Editor preference editorPathName not set")
+    # def editFile(self, fname):
+    #    import FreeCAD
+    #    import subprocess,  os, sys
+    #    editorPathName = FreeCAD.ParamGet(\
+    #        "User parameter:BaseApp/Preferences/Mod/OpenSCAD").GetString('externalEditor')
+    #    print(f"Path to external editor {editorPathName}")
+    #    # ToDo : Check pathname valid
+    #    if editorPathName != "":
+    #        p1 = subprocess.Popen( \
+    #            [editorPathName, fname], \
+    #            stdin=subprocess.PIPE,\
+    #            stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    #
+    #    else:
+    #        print(f"External Editor preference editorPathName not set")
 
 
     def createGeometry(self, obj):
@@ -366,23 +378,23 @@ class SCADBase:
         print("Do not process SCAD source on Document recompute")
         return
 
-        print(f"Active Document {FreeCAD.ActiveDocument.Name}")
-        #shp = shapeFromSourceFile(obj, keepWork, modules = obj.modules)
-        shp = shapeFromSourceFile(obj, modules = obj.modules)
-        print(f"Active Document {FreeCAD.ActiveDocument.Name}")
-        if shp is not None:
-            print(f"Initial Shape {obj.Shape}")
-            print(f"Returned Shape {shp}")
-            shp.check()
-            newShp = shp.copy()
-            print(f"New Shape {newShp}")
-            print(f"Old Shape {shp}")
-            #obj.Shape = shp.copy()
-            obj.Shape = newShp
-        else:
-            print(f"Shape is None")
+    #    print(f"Active Document {FreeCAD.ActiveDocument.Name}")
+    #    #shp = shapeFromSourceFile(obj, keepWork, modules = obj.modules)
+    #    shp = shapeFromSourceFile(obj, modules = obj.modules)
+    #    print(f"Active Document {FreeCAD.ActiveDocument.Name}")
+    #    if shp is not None:
+    #        print(f"Initial Shape {obj.Shape}")
+    #        print(f"Returned Shape {shp}")
+    #        shp.check()
+    #        newShp = shp.copy()
+    #        print(f"New Shape {newShp}")
+    #        print(f"Old Shape {shp}")
+    #        #obj.Shape = shp.copy()
+    #        obj.Shape = newShp
+    #    else:
+    #        print(f"Shape is None")
 
-class SCADObject(SCADBase):
+class SCADObject(SCADfileBase):
     def __init__(self, obj, filename):
         import FreeCAD, os, tempfile, Part
         super().__init__(obj, filename)
@@ -391,7 +403,7 @@ class SCADObject(SCADBase):
         tmpDir = tempfile.gettempdir()
         #tmpDir = obj.Document.getPropertyByName("TransientDir")
         print(f"Doc temp dir {tmpDir}")
-        tmpPath = os.path.join(tmpDir, obj.source)
+        tmpPath = os.path.join(tmpDir, obj.scadName)
         print(f"Path {tmpPath}")
         self.copyFile(filename, tmpPath)
         # After creating 
@@ -407,31 +419,34 @@ class SCADObject(SCADBase):
         Since we have some un-serializable parts here -- the Coin stuff --
         we must define this method\
         to return a tuple of all serializable objects or None."""
-        if hasattr(self, "obj"):
-            if hasattr(self.obj, "sourceFile"):
-                print(f"Save Source File {self.obj.sourceFile}")
-                sf = open(self.obj.sourceFile, 'r')
-                buffer = sf.read()
-                return {"sourceFile": [self.obj.sourceFile, buffer]}
-        else:
-            pass
+    #
+    # Storing SCAD source with FreeCAD files does not work with includes
+    #
+    #    if hasattr(self, "obj"):
+    #        if hasattr(self.obj, "sourceFile"):
+    #            print(f"Save Source File {self.obj.sourceFile}")
+    #            sf = open(self.obj.sourceFile, 'r')
+    #            buffer = sf.read()
+    #            return {"sourceFile": [self.obj.sourceFile, buffer]}
+    #    else:
+    #        pass
 
     def __setstate__(self, arg):
-        import os, tempfile
+        # import os, tempfile
         """When restoring the serialized object from document we have the
         chance to set some internals here. Since no data were serialized
         nothing needs to be done here."""
         print(f"Restore {type(arg)} {arg}")
-        tmpDir = tempfile.gettempdir()
-        sourceName = arg.keys()[0]
-        print(f"{arg[sourceName]}")
-        sourcePath = os.path.join(tmpDir, soureName)
-        print(f"Source Path {sourcePath}")
-        fp = open(sourcePath,"w")
-        if fp is not None:
-            fp.write(arg[sourceName])
-        else:
-            print(f"Failed to open {sourcePath}")
+        # tmpDir = tempfile.gettempdir()
+        # sourceName = arg.keys()[0]
+        # print(f"{arg[sourceName]}")
+        # sourcePath = os.path.join(tmpDir, soureName)
+        # print(f"Source Path {sourcePath}")
+        # fp = open(sourcePath,"w")
+        # if fp is not None:
+        #    fp.write(arg[sourceName])
+        # else:
+        #    print(f"Failed to open {sourcePath}")
 
 
 class ViewSCADProvider:
