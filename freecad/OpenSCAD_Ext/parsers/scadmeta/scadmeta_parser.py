@@ -1,79 +1,176 @@
-# scadmeta_parser.py
-#
-# Lightweight OpenSCAD metadata parser
-# Used by varsSCAD to extract parameter information from .scad files
-
-from dataclasses import dataclass, field
-from typing import Dict, List
+from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
+import FreeCAD
 import re
-import os
 
-
-@dataclass
-class ScadMeta:
-    """Container for parsed SCAD metadata"""
-    variables: Dict[str, str] = field(default_factory=dict)
-    modules: List[str] = field(default_factory=list)
-    includes: List[str] = field(default_factory=list)
-    uses: List[str] = field(default_factory=list)
-
-
-def parse_scadmeta(scad_file: str) -> ScadMeta:
-    """
-    Parse metadata directives from an OpenSCAD file.
-
-    Recognised comment directives:
-
-      // @var name = value
-      // @module name
-      // @include filename.scad
-      // @use filename.scad
-
-    Returns:
-        ScadMeta instance (never raises)
-    """
-    meta = ScadMeta()
-
-    if not scad_file or not os.path.isfile(scad_file):
-        return meta
-
-    # Regex patterns
-    var_re = re.compile(r"//\s*@var\s+([A-Za-z_]\w*)\s*=\s*(.+)")
-    module_re = re.compile(r"//\s*@module\s+([A-Za-z_]\w*)")
-    include_re = re.compile(r"//\s*@include\s+(.+)")
-    use_re = re.compile(r"//\s*@use\s+(.+)")
-
+# ============================================================
+# Helper: safe spreadsheet write (FreeCAD-version tolerant)
+# ============================================================
+def safe_set(sheet, row, col, value):
     try:
-        with open(scad_file, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
+        col_letter = ""
+        c = col
+        while c > 0:
+            c, r = divmod(c - 1, 26)
+            col_letter = chr(65 + r) + col_letter
+        sheet.set(f"{col_letter}{row}", str(value))
+    except Exception as e:
+        write_log("ERROR", f"Spreadsheet set failed ({row},{col}): {e}")
 
-                if not line.startswith("//"):
-                    continue
+# ============================================================
+# SCAD META PARSER
+# ============================================================
+def parse_scad_meta(file_path):
+    """
+    Parse SCAD file and return:
+      {
+        "__global__": {
+            "vars": [...],
+            "exprs": {var: expr},
+            "sets": []
+        },
+        "module_name": {
+            "vars": [...],
+            "exprs": {var: expr},
+            "sets": []
+        }
+      }
+    """
+    with open(file_path, "r") as f:
+        text = f.read()
 
-                m = var_re.match(line)
-                if m:
-                    meta.variables[m.group(1)] = m.group(2).strip()
-                    continue
+    module_re = re.compile(
+        r'^\s*module\s+(\w+)\s*\((.*?)\)\s*{',
+        re.MULTILINE | re.DOTALL
+    )
+    assign_re = re.compile(
+        r'^\s*(\w+)\s*=\s*([^;]+);',
+        re.MULTILINE
+    )
 
-                m = module_re.match(line)
-                if m:
-                    meta.modules.append(m.group(1))
-                    continue
+    meta = {}
 
-                m = include_re.match(line)
-                if m:
-                    meta.includes.append(m.group(1).strip())
-                    continue
+    # -------------------------------
+    # GLOBAL VARIABLES
+    # -------------------------------
+    global_text = module_re.split(text)[0]
+    global_exprs = dict(assign_re.findall(global_text))
 
-                m = use_re.match(line)
-                if m:
-                    meta.uses.append(m.group(1).strip())
-                    continue
+    meta["__global__"] = {
+        "vars": list(global_exprs.keys()),
+        "exprs": global_exprs,
+        "sets": []
+    }
 
-    except Exception:
-        # Parsing must NEVER kill the workbench
-        pass
+    # -------------------------------
+    # MODULES
+    # -------------------------------
+    for m in module_re.finditer(text):
+        name = m.group(1)
+
+        # --- parameters ---
+        param_exprs = {}
+        for p in m.group(2).split(","):
+            p = p.strip()
+            if not p:
+                continue
+            if "=" in p:
+                k, v = p.split("=", 1)
+                param_exprs[k.strip()] = v.strip()
+            else:
+                param_exprs[p] = ""
+
+        # --- module body ---
+        start = m.end()
+        depth = 1
+        i = start
+        while i < len(text) and depth:
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+            i += 1
+        body = text[start:i - 1]
+
+        body_exprs = dict(assign_re.findall(body))
+
+        exprs = {}
+        exprs.update(param_exprs)
+        exprs.update(body_exprs)
+
+        meta[name] = {
+            "vars": list(exprs.keys()),
+            "exprs": exprs,
+            "sets": []
+        }
 
     return meta
+
+# ============================================================
+# MAIN ENTRY POINT (CALLED BY COMMAND)
+# ============================================================
+def varsSCAD(obj):
+    """
+    Called by VarsSCADFileObject_CMD.
+    Creates Vars_* spreadsheets with:
+    Name | Value Expression | Value Evaluated | Type
+    """
+    doc = FreeCAD.ActiveDocument
+    if doc is None:
+        doc = FreeCAD.newDocument("SCAD_Vars")
+
+    scad_file = obj.sourceFile
+    write_log("EDIT", f"Parsing SCAD file: {scad_file}")
+
+    meta = parse_scad_meta(scad_file)
+
+    def eval_expr(expr, scope):
+        try:
+            return str(eval(expr, {}, scope))
+        except Exception:
+            return ""
+
+    for module_name, mod_data in meta.items():
+        sheet_name = f"Vars_{module_name}"
+        sheet = doc.getObject(sheet_name)
+
+        if sheet is None:
+            sheet = doc.addObject("Spreadsheet::Sheet", sheet_name)
+            write_log("INFO", f"Creating new spreadsheet '{sheet_name}'")
+
+        # clear existing content safely
+        try:
+            sheet.clear()
+        except Exception:
+            pass
+
+        # header
+        safe_set(sheet, 1, 1, "Name")
+        safe_set(sheet, 1, 2, "Value Expression")
+        safe_set(sheet, 1, 3, "Value Evaluated")
+        safe_set(sheet, 1, 4, "Type")
+
+        row = 2
+        eval_scope = {}
+
+        for var in mod_data.get("vars", []):
+            expr = mod_data.get("exprs", {}).get(var, "")
+            value = eval_expr(expr, eval_scope)
+
+            if value:
+                try:
+                    eval_scope[var] = float(value)
+                except Exception:
+                    pass
+
+            safe_set(sheet, row, 1, var)
+            safe_set(sheet, row, 2, expr)
+            safe_set(sheet, row, 3, value)
+            safe_set(sheet, row, 4, "Variable")
+            row += 1
+
+    doc.recompute()
+    if FreeCAD.GuiUp:
+        FreeCAD.Gui.updateGui()
+
+    write_log("INFO", f"SCAD variables extracted for {obj.Name}")
 

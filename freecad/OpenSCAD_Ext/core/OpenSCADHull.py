@@ -9,7 +9,7 @@ printverbose = False
 class HullClassFeature:
     def __init__(self, obj, objList):
         obj.addExtension("App::GeoFeatureGroupExtensionPython")
-        obj.addExtension("App::PartExtensionPython")
+        #obj.addExtension("App::PartExtensionPython")
         obj.Proxy = self
 
         if objList:
@@ -563,7 +563,8 @@ def makeHullObject(List, ex=False):
     if not doc:
         doc = FreeCAD.newDocument()
 
-    hullObj = doc.addObject("App::DocumentObjectGroupPython", "Hull")
+    #hullObj = doc.addObject("App::DocumentObjectGroupPython", "Hull")
+    hullObj = doc.addObject("Part::FeaturePython", "Hull")
     HullClassFeature(hullObj, List)
 
     if ex:
