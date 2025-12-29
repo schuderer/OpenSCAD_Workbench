@@ -159,6 +159,12 @@ class NewSCADFile_Class(BaseParams):
         write_log("Info",f"Options {options}")
 
         # Create SCAD Object
+        doc = FreeCAD.ActiveDocument
+        if doc is None:
+           doc_name = options[0]
+           doc = FreeCAD.newDocument(doc_name)
+           write_log("Info", f"Created new document: {doc_name}")
+
         obj = FreeCAD.ActiveDocument.addObject("Part::FeaturePython", options[0])
         #
         #scadObj = SCADfileBase(obj, scadName, sourcefile, mode='Mesh', fnmax=16, timeout=30)
@@ -173,7 +179,7 @@ class NewSCADFile_Class(BaseParams):
                   options[4], \
                   )
         ViewSCADProvider(obj.ViewObject)
-        self.editFile(sourceFile)
+        self.editFile(scadName, sourceFile)
 
         #if hasattr(obj, 'Proxy'):
         #filename = "New_File"

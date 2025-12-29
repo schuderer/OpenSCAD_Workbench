@@ -1,0 +1,13 @@
+from freecad.OpenSCAD_Ext.libraries.scadLibrary import scan_scad_library
+from freecad.OpenSCAD_Ext.libraries.OpenSCADLibraryBrowser import OpenSCADLibraryBrowser
+from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
+
+def open_scad_library():
+    write_log("Info", "OpenSCAD Library executed")
+
+    meta_list = scan_scad_library()
+
+    browser = OpenSCADLibraryBrowser()
+    browser.populate_from_meta_list(meta_list)
+    browser.exec_()
+

@@ -4,9 +4,11 @@ import FreeCADGui
 # OpenSCAD library location - Environmental Variable  OPENSCADPATH
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
-from freecad.OpenSCAD_Ext.libraries.libView import OpenSCADLibraryBrowser
-from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase
+from freecad.OpenSCAD_Ext.gui.OpenSCADLibraryBrowser \
+     import OpenSCADLibraryBrowser
+#from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase
 from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
+#from freecad.OpenSCAD_Ext.parses.parse_scad_for_modules import scan_for_modules
 
 class LibrarySCAD_Class(BaseParams):
     """Access OpenSCAD Library """
@@ -24,8 +26,8 @@ class LibrarySCAD_Class(BaseParams):
         #write_log("Info",doc.Label)
         #if not doc:
         #    return
-        dialog = OpenSCADLibraryBrowser()
-        dialog.exec_()
+        browser = OpenSCADLibraryBrowser()
+        browser.exec_()
 
 
     def IsActive(self):

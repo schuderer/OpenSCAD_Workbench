@@ -44,7 +44,7 @@ class EditSCADFile_Class(BaseParams):
 
             try:
                write_log("EDIT",f"obj.sourceFile {obj.sourceFile}")
-               self.editFile(obj.sourceFile)
+               self.editSource(obj.sourceFile)
 
             except Exception as e:
                FreeCAD.Console.PrintError(

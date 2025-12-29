@@ -1,5 +1,6 @@
 import FreeCAD
 import FreeCADGui
+import os
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 
@@ -47,13 +48,19 @@ class BaseParams:
 
         return os.path.isdir(path)
 
+    def editSource(self, scadPath):
+        import os
+        name = os.path.basename(scadPath)[0]
+        self.editFile(name, scadPath) 
 
-    def editFile(self, scadPath):
-        #scadPath = os.join(self.scadDirectory, scadName)
-        import subprocess,  os, sys
-        p1 = subprocess.Popen( \
-             [self.editorPathName, scadPath], \
-             stdin=subprocess.PIPE,\
-             stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    def editFile(self, name, scadPath):
+        import subprocess, os
+        write_log("Info", f"Launching editor for {name}: {scadPath}")
+        p1 = subprocess.Popen(
+            [self.editorPathName, scadPath],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
         write_log("Info", f"Launching editor: {self.editorPathName} {scadPath}")
 
