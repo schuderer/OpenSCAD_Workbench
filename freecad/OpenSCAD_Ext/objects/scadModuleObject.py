@@ -157,6 +157,11 @@ class SCADModuleObject(SCADfileBase):
         # run_openscad(obj, src)
         pass
 
+    def clean_module_name(self, name: str) -> str:
+        if name.endswith("()"):
+            return name[:-2]
+        return name
+
     def _build_scad_source(self, obj):
         import os
 
@@ -173,7 +178,7 @@ class SCADModuleObject(SCADfileBase):
         os.makedirs(scad_dir, exist_ok=True)
 
         # Open the file for reading/writing (append + read)
-        with open(obj.Proxy.sourceFile, "a+", encoding="utf-8") as fp:
+        with open(obj.Proxy.sourceFile, "w", encoding="utf-8") as fp:
             # These are the includes found in the library
             # may or may not be required by this module
             # For now include in case needed
@@ -187,11 +192,11 @@ class SCADModuleObject(SCADfileBase):
             argsLst = [arg.name for arg in self.module.arguments]
             argsLst = ", ".join(argsLst)
             print(f"Args List {argsLst}")
+            moduleName = self.clean_module_name(self.module.name)
             # First add the Module definition
             # Could be just name or name=value ?
-            print(f"module {self.module.name} ({argsLst})", file=fp)
-            print(f"{self.module.name} ({argsLst});", file=fp)
-            fp.close()
+            print(f"module {moduleName} ({argsLst})", file=fp)
+            print(f"module {moduleName} ({argsLst});", file=fp)
 
     '''
 
