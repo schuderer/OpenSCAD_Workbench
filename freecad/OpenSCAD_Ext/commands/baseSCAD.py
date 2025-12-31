@@ -4,64 +4,71 @@ import os
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 
-#### Static function ???
 class BaseParams:
-    def __init__(self):
-        params = FreeCAD.ParamGet(\
-            "User parameter:BaseApp/Preferences/Mod/OpenSCAD")
-        self.editorPathName = params.GetString('externalEditor')  
-        write_log("Info", f"Path to external editor {self.editorPathName}")
-        if not self.isValidFilePath(self.editorPathName):
+
+    PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/OpenSCAD"
+
+    @staticmethod
+    def _params():
+        return FreeCAD.ParamGet(BaseParams.PARAM_PATH)
+
+    @staticmethod
+    def editorPathName():
+        params = BaseParams._params()
+        path = params.GetString('externalEditor')
+
+        write_log("Info", f"Path to external editor {path}")
+
+        if not BaseParams.isValidFilePath(path):
             FreeCAD.Console.PrintError(
                 "External editor path is not set or invalid\n"
             )
-        self.scadSourcePath = params.GetString('defaultSourceDirectory')
-        write_log("Info", f"Path to scad Source {self.scadSourcePath}")
-        if not self.isValidDirectory(self.scadSourcePath):
+        return path
+
+    @staticmethod
+    def scadSourcePath():
+        params = BaseParams._params()
+        path = params.GetString('defaultSourceDirectory')
+
+        write_log("Info", f"Path to scad Source {path}")
+
+        if not BaseParams.isValidDirectory(path):
             FreeCAD.Console.PrintError(
-                "Default Source path {self.scadSourcePath} is not set or invalid\n"
+                f"Default Source path {path} is not set or invalid\n"
             )
+        return path
 
+    # ---- validation helpers ----
 
-    def isValidFilePath(self, path):
-        import os
-        if not path:
-           return False
-    
-        if not isinstance(path, str):
-           return False
-            
-        # Expand ~ and environment variables
-        path = os.path.expandvars(os.path.expanduser(path))
-        
-        # Must exist and be a file
-        return os.path.isfile(path)
+    @staticmethod
+    def isValidFilePath(path):
+        return bool(path) and os.path.isfile(path)
 
-    def isValidDirectory(self, path):
-        import os
-        if not path:
-            return False
-        if not isinstance(path, str):
-            return False
+    @staticmethod
+    def isValidDirectory(path):
+        return bool(path) and os.path.isdir(path)
 
-        # Expand ~ and environment variables
-        path = os.path.expanduser(os.path.expandvars(path))
-
-        return os.path.isdir(path)
 
     def editSource(self, scadPath):
         import os
+
         name = os.path.basename(scadPath)[0]
-        self.editFile(name, scadPath) 
+        self.editFile(name, scadPath)
 
     def editFile(self, name, scadPath):
-        import subprocess, os
+        import subprocess
+
+        editor = BaseParams.editorPathName()   # ✅ CALL IT
+        if not editor:
+            FreeCAD.Console.PrintError("No external editor configured\n")
+            return
+
         write_log("Info", f"Launching editor for {name}: {scadPath}")
-        p1 = subprocess.Popen(
-            [self.editorPathName, scadPath],
+        write_log("Info", f"Launching editor: {editor} {scadPath}")
+
+        subprocess.Popen(
+            [editor, scadPath],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        write_log("Info", f"Launching editor: {self.editorPathName} {scadPath}")
-

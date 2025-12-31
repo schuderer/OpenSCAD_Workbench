@@ -1,6 +1,6 @@
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
-from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase 
+from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase, ViewSCADProvider
 #
 # Called with 
 # Wrap in SCADModuleObject
@@ -159,32 +159,39 @@ class SCADModuleObject(SCADfileBase):
 
     def _build_scad_source(self, obj):
         import os
-        bp=BaseParams()
-        write_log("DIAG",bp.scadSourcePath)
-        print(dir(obj))
-        print(dir(obj.Proxy))
-        write_log("Source File",obj.sourceFile)
-        obj.Proxy.sourceFile =  os.path.join(bp.scadSourcePath, obj.Name + ".scad")
-        fp = open(obj.sourceFile, "a+", encoding="utf-8")
 
-        # These are the includes found in the library
-        # may or may not be required by this module
-        # For now include in case needed
-        for inc in self.meta.comment_includes:
-            print(f"include <{inc}>;", file=fp)
+        # Log the current source file
+        write_log("Source File", obj.sourceFile)
 
-        for inc in self.meta.includes:
-            print(f"include <{inc}>;", file=fp)
+        # Get the SCAD source directory from BaseParams (static method)
+        scad_dir = BaseParams.scadSourcePath()  # ✅ call static method
 
-        #print(f"Arguments {self.module.arguments})")
-        argsLst = [arg.name for arg in self.module.arguments]
-        argsLst = ", ".join(argsLst)
-        print(f"Args List {argsLst}")
-        # First add the Module definition
-        # Could be just name or name=value ?
-        print(f"module {self.module.name} ({argsLst})", file=fp)
-        print(f"{self.module.name} ({argsLst});", file=fp)
-        fp.close()
+        # Build the full SCAD file path
+        obj.Proxy.sourceFile = os.path.join(scad_dir, obj.Name + ".scad")
+
+        # Make sure the directory exists
+        os.makedirs(scad_dir, exist_ok=True)
+
+        # Open the file for reading/writing (append + read)
+        with open(obj.Proxy.sourceFile, "a+", encoding="utf-8") as fp:
+            # These are the includes found in the library
+            # may or may not be required by this module
+            # For now include in case needed
+            for inc in self.meta.comment_includes:
+                print(f"include <{inc}>;", file=fp)
+
+            for inc in self.meta.includes:
+                print(f"include <{inc}>;", file=fp)
+
+            #print(f"Arguments {self.module.arguments})")
+            argsLst = [arg.name for arg in self.module.arguments]
+            argsLst = ", ".join(argsLst)
+            print(f"Args List {argsLst}")
+            # First add the Module definition
+            # Could be just name or name=value ?
+            print(f"module {self.module.name} ({argsLst})", file=fp)
+            print(f"{self.module.name} ({argsLst});", file=fp)
+            fp.close()
 
     '''
 

@@ -467,4 +467,4 @@ class ViewSCADProvider:
         """When restoring the serialized object from document we have the
         chance to set some internals here. Since no data were serialized
         nothing needs to be done here."""
-        pass
+        return None
