@@ -32,15 +32,15 @@ from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase, ViewSCADProvid
 #        self.comment_includes = []  # Includes found in file header comments
 #        self.modules = []           # List of SCADModule objects
   
-
+import os
 
 class SCADModuleObject(SCADfileBase):
-    def __init__(self, obj, meta, module, args):
+    def __init__(self, obj, name, sourceFile, meta, module, args):
         # SCADfileBase(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
         super().__init__(
             obj,
-            meta.baseName,
-            meta.sourceFile
+            name,
+            sourceFile
         )
         self.Object = obj
         #self.sourceFile = meta.sourceFile
@@ -164,7 +164,7 @@ class SCADModuleObject(SCADfileBase):
         write_log("Source File", obj.sourceFile)
 
         # Get the SCAD source directory from BaseParams (static method)
-        scad_dir = BaseParams.scadSourcePath()  # ✅ call static method
+        scad_dir = BaseParams.getScadSourcePath()
 
         # Build the full SCAD file path
         obj.Proxy.sourceFile = os.path.join(scad_dir, obj.Name + ".scad")

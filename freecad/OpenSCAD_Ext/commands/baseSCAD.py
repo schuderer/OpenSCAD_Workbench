@@ -26,17 +26,35 @@ class BaseParams:
         return path
 
     @staticmethod
-    def scadSourcePath():
-        params = BaseParams._params()
-        path = params.GetString('defaultSourceDirectory')
+    def getScadSourcePath():
+        import os
+        params = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/OpenSCAD"
+        )
 
-        write_log("Info", f"Path to scad Source {path}")
+        path = params.GetString("defaultSourceDirectory", "").strip()
 
-        if not BaseParams.isValidDirectory(path):
+        write_log("Info", f"Path to SCAD Source: {path}")
+
+        # Empty or unset
+        if not path:
             FreeCAD.Console.PrintError(
-                f"Default Source path {path} is not set or invalid\n"
+                "Default SCAD Source path is not set in preferences\n"
             )
+            return ""
+
+        # Expand ~ and env vars (important on macOS/Linux)
+        path = os.path.expanduser(os.path.expandvars(path))
+
+        # Path exists but is not a directory
+        if not os.path.isdir(path):
+            FreeCAD.Console.PrintError(
+                f"Default SCAD Source path is not a valid directory:\n  {path}\n"
+            )
+            return ""
+
         return path
+
 
     # ---- validation helpers ----
 

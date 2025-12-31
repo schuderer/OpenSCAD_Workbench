@@ -161,6 +161,7 @@ class OpenSCADLibraryBrowser(QtWidgets.QDialog):
                 return
 
             dialog = SCAD_Module_Dialog(meta, parent=self)
+            #dialog = SCAD_Module_Dialog(parent=self, module=mod, meta=meta)
             dialog.exec_()
             write_log("Info", "ModuleSCAD dialog executed.")
 
