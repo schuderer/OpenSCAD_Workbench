@@ -4,6 +4,7 @@ import os
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 
+#### Static function ???
 class BaseParams:
     def __init__(self):
         params = FreeCAD.ParamGet(\

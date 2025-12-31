@@ -1,7 +1,8 @@
 # parse_scad_for_modules.py
 
 import re
-from collections import namedtuple
+import os
+# from collections import namedtuple
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 
 # --- Data Classes ---
@@ -15,12 +16,15 @@ class SCADModule:
     def __init__(self, name):
         self.name = name
         self.description = ""
+        self.synopsis = ""
         self.usage = []
+        self.includes = []
         self.arguments = []
 
 class SCADMeta:
-    def __init__(self, fileName):
-        self.fileName = fileName
+    def __init__(self, filename):
+        self.sourceFile = filename
+        self.baseName = os.path.basename(filename)
         self.includes = []          # Includes in the file
         self.comment_includes = []  # Includes found in file header comments
         self.modules = []           # List of SCADModule objects
@@ -75,6 +79,9 @@ def _parse_modules(lines):
                 # Description
                 if line.strip().startswith("// Description:"):
                     current_module.description = line.split(":",1)[1].strip()
+                # Synopsis
+                if line.strip().startswith("// Synopsis:"):
+                    current_module.synopsis = line.split(":",1)[1].strip()
                 # Usage
                 if line.strip().startswith("// Usage:"):
                     usage_line = line.split(":",1)[1].strip()

@@ -1,13 +1,69 @@
+from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
+from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
 from freecad.OpenSCAD_Ext.objects.SCADObject import SCADfileBase 
+#
+# Called with 
+# Wrap in SCADModuleObject
+# SCADModuleObject(obj, self.meta, self.selected_module_meta, args=args_values)  
+#
+# self.meta : SCADMeta
+# self.selected_module_meta : SCADModule: 
+#
+# --- Data Classes ---
+#class SCADArgument:
+#    def __init__(self, name, default=None, description=None):
+#        self.name = name
+#        self.default = default
+#        self.description = description
+#
+#class SCADModule:
+#    def __init__(self, name):
+#        self.name = name
+#        self.description = ""
+#        self.usage = []
+#        self.includes = []
+#        self.arguments = []
+#
+#class SCADMeta:
+#    def __init__(self, sourceFile):
+#        self.sourceFile = sourceFile
+#        self.baseName = os.path.basename(sourceFile)
+#        self.includes = []          # Includes in the file
+#        self.comment_includes = []  # Includes found in file header comments
+#        self.modules = []           # List of SCADModule objects
+  
+
 
 class SCADModuleObject(SCADfileBase):
-    def __init__(self, obj, meta, module):
+    def __init__(self, obj, meta, module, args):
+        # SCADfileBase(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
+        super().__init__(
+            obj,
+            meta.baseName,
+            meta.sourceFile
+        )
         self.Object = obj
+        #self.sourceFile = meta.sourceFile
+        #self.scadName = meta.baseName
+        self.meta = meta
+        self.module = module
+        self.args = args
         obj.Proxy = self
 
+        write_log("INFO",f"library scad file {meta.sourceFile}")
+        write_log("INFO",f"includes {meta.includes}")
+        write_log("INFO",f"modules {module.name}")
+        write_log("INFO",f"args {args}")
+        
         self._init_properties(obj, meta, module)
-        self._set_defaults(obj, module)
-
+        # defaults set when creating properties
+        # self._set_defaults(obj, module)
+        # Need to do properties before build_scad_source
+        # refresh_scad_source ??
+        self._build_scad_source(obj) # obj ?
+        self.add_args_as_properties(obj)
+        self.renderFunction(obj)
+    
     def _init_properties(self, obj, meta, module):
         # --- Parameters group ---
         obj.addProperty(
@@ -15,23 +71,23 @@ class SCADModuleObject(SCADfileBase):
             "ModuleName",
             "Parameters",
             "OpenSCAD module name"
-        ).ModuleName = module["name"]
+        ).ModuleName = self.module.name
 
         obj.addProperty(
             "App::PropertyString",
             "Description",
             "Parameters",
             "Module description"
-        ).Description = module.get("description", "")
+        ).Description = module.description
 
         obj.setEditorMode("Description", 1)
-
+        '''
         obj.addProperty(
             "App::PropertyString",
             "Usage",
             "Parameters",
             "Usage examples"
-        ).Usage = "\n".join(module.get("usage", []))
+        ).Usage = "\n".join(module.usage, [])
 
         obj.setEditorMode("Usage", 1)
 
@@ -51,57 +107,86 @@ class SCADModuleObject(SCADfileBase):
         ).ArgumentsInfo = "\n".join(arg_info)
 
         obj.setEditorMode("ArgumentsInfo", 1)
+        '''
 
-        # --- SCAD group ---
-        obj.addProperty(
-            "App::PropertyStringList",
-            "Includes",
-            "SCAD",
-            "Required include files"
-        ).Includes = meta.get("includes", [])
+    def add_args_as_properties(self, obj):
+        # --- Add to SCAD group ---
+        #obj.addProperty(
+        #    "App::PropertyStringList",
+        #    "Includes",
+        #    "SCAD",
+        #    "Required include files"
+        #).Includes = meta.get("includes", [])
 
-        obj.addProperty(
-            "App::PropertyString",
-            "Source",
-            "SCAD",
-            "Generated OpenSCAD source"
-        )
+        #obj.addProperty(
+        #    "App::PropertyString",
+        #    "Source",
+        #    "SCAD",
+        #    "Generated OpenSCAD source"
+        #)
 
-        obj.setEditorMode("Source", 1)
+        #obj.setEditorMode("Source", 1)
 
         # --- Add module parameters dynamically ---
-        for arg in module.get("arguments", []):
-            name = arg["name"]
-            default = arg.get("default")
+        for arg in self.module.arguments:
+            name = arg.name
+            default = arg.default
+            description = arg.description
 
             prop = obj.addProperty(
+
                 "App::PropertyString",
                 name,
-                "Parameters",
-                "Module parameter"
-            )
+                "Module Parameters",
+                description
 
+            )
+        
             if default is not None:
                 setattr(obj, name, str(default))
 
-    def _set_defaults(self, obj, module):
-        obj.ModuleName = module["name"]
+
+    #def _set_defaults(self, obj, module):
+    #    obj.ModuleName = module["name"]
 
     def execute(self, obj):
-        src = self._build_scad_source(obj)
-        obj.Source = src
+        # src = self._build_scad_source(obj)
+        # obj.Source = src
 
         # Hook to existing OpenSCAD execution
         # run_openscad(obj, src)
+        pass
 
     def _build_scad_source(self, obj):
-        lines = []
+        import os
+        bp=BaseParams()
+        write_log("DIAG",bp.scadSourcePath)
+        print(dir(obj))
+        print(dir(obj.Proxy))
+        write_log("Source File",obj.sourceFile)
+        obj.Proxy.sourceFile =  os.path.join(bp.scadSourcePath, obj.Name + ".scad")
+        fp = open(obj.sourceFile, "a+", encoding="utf-8")
 
-        for inc in obj.Includes:
-            lines.append(f'include <{inc}>;')
+        # These are the includes found in the library
+        # may or may not be required by this module
+        # For now include in case needed
+        for inc in self.meta.comment_includes:
+            print(f"include <{inc}>;", file=fp)
 
-        lines.append("")
-        lines.append(f"{obj.ModuleName}(")
+        for inc in self.meta.includes:
+            print(f"include <{inc}>;", file=fp)
+
+        #print(f"Arguments {self.module.arguments})")
+        argsLst = [arg.name for arg in self.module.arguments]
+        argsLst = ", ".join(argsLst)
+        print(f"Args List {argsLst}")
+        # First add the Module definition
+        # Could be just name or name=value ?
+        print(f"module {self.module.name} ({argsLst})", file=fp)
+        print(f"{self.module.name} ({argsLst});", file=fp)
+        fp.close()
+
+    '''
 
         args = []
         for prop in obj.PropertiesList:
@@ -123,17 +208,29 @@ class SCADModuleObject(SCADfileBase):
         lines.append(");")
 
         return "\n".join(lines)
+    '''
+
+    def _module_source_from_library(self, lines):
+        # maybe find and save original source as property
+        # Need to deal with case if library changes
+        # SCADModuleObject maybe no edit
+        # So maybe SCADfileBase, SCADObject and SCADModuleObject
+        #lines.append("#ToDo Add from library defintion")
+        # defintion is in library so should not add
+        pass
+
 def _add_argument_property(self, obj, arg):
-    name = arg["name"]
-    default = arg.get("default")
-    desc = arg.get("description", "")
+    name = arg.name
+    default = arg.default
+    desc = arg.description
+    subsection = "SCAD Parameters"
 
     # Boolean
     if default in ("true", "false"):
         prop = obj.addProperty(
             "App::PropertyBool",
             name,
-            "Parameters",
+            subsection,
             desc
         )
         setattr(obj, name, default == "true")
@@ -146,7 +243,7 @@ def _add_argument_property(self, obj, arg):
             prop = obj.addProperty(
                 "App::PropertyInteger",
                 name,
-                "Parameters",
+                subsection,
                 desc
             )
             setattr(obj, name, ival)
@@ -160,7 +257,7 @@ def _add_argument_property(self, obj, arg):
         prop = obj.addProperty(
             "App::PropertyFloat",
             name,
-            "Parameters",
+            subsection,
             desc
         )
         setattr(obj, name, fval)
@@ -172,7 +269,7 @@ def _add_argument_property(self, obj, arg):
     prop = obj.addProperty(
         "App::PropertyString",
         name,
-        "Parameters",
+        subsection,
         desc
     )
     if default:

@@ -23,7 +23,7 @@
 #***************************************************************************
 
 import FreeCAD, FreeCADGui, Part, Mesh
-import os, sys, tempfile
+import os, tempfile
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 from freecad.OpenSCAD_Ext.core.OpenSCADUtils import callopenscad, \
@@ -33,13 +33,9 @@ from freecad.OpenSCAD_Ext.core.OpenSCADUtils import callopenscad, \
 def createMesh(srcObj, wrkSrc):
     print(f"Create Mesh {srcObj.Name} {wrkSrc}")
     try:
-        print(f"Source : {srcObj.scadName}")
-        print(f"SourceFile : {srcObj.sourceFile}")
         tmpDir = tempfile.gettempdir()
         tmpOutFile = os.path.join(tmpDir, srcObj.Name+'.stl')
-        print(f"Call OpenSCAD")
-        print(f"Input file {wrkSrc}")
-        print(f"Output file {tmpOutFile}")
+        print(f"Call OpenSCAD - Input file {wrkSrc} Output file {tmpOutFile}")
         tmpFileName=callopenscad(wrkSrc, \
             outputfilename=tmpOutFile, outputext='stl', \
             timeout=int(srcObj.timeout))
@@ -65,10 +61,10 @@ def createMesh(srcObj, wrkSrc):
         print(f"After  : {after}")
         after = after.splitlines()[0]
         print(f"After  : {after}")
-        print(f"End After")
         srcObj.message = before + after
-        print(f"Error Message {srcObj.message}")
-        FreeCAD.closeDocument("work")
+        print(f"End After - Error Message {srcObj.message}")
+        #FreeCAD.closeDocument("work")
+        # work document is for Brep Only
         srcObj.execute = False
 
 # Source may be processed
@@ -84,8 +80,8 @@ def createBrep(srcObj, tmpDir, wrkSrc):
 		print(f"SourceFile : {srcObj.sourceFile}")
 		print(wrkDoc)
 		csgOutFile = os.path.join(tmpDir, srcObj.Name+'.csg')
-		brepOutFile = os.path.join(tmpDir, srcObj.Name+'.brep')
-		print(f"Call OpenSCAD to create csg file from scad")
+		# brepOutFile = os.path.join(tmpDir, srcObj.Name+'.brep')
+		print("Call OpenSCAD to create csg file from scad")
 		tmpFileName=callopenscad(wrkSrc, \
 			outputfilename=csgOutFile, outputext='csg', \
 			timeout=int(srcObj.timeout))
@@ -94,7 +90,7 @@ def createBrep(srcObj, tmpDir, wrkSrc):
 		if hasattr(srcObj, "sourceFile"):
 			source = srcObj.sourceFile
 		global pathName    
-		pathName = os.path.dirname(os.path.normpath(scadName))
+		pathName = os.path.dirname(os.path.normpath(srcObj.scadName))
 		print(f"Process CSG File name path {pathName} file {tmpFileName}")
 		#processCSG(wrkDoc, pathName, tmpFileName, srcObj.fnmax)
 		processCSG(wrkDoc, tmpFileName, srcObj.fnmax)
@@ -142,9 +138,8 @@ def createBrep(srcObj, tmpDir, wrkSrc):
 		print(f"After  : {after}")
 		after = after.splitlines()[0]
 		print(f"After  : {after}")
-		print(f"End After")
 		srcObj.message = before + after
-		print(f"Error Message {srcObj.message}")
+		print(f" End After - Error Message {srcObj.message}")
 		FreeCAD.closeDocument("work")
 		srcObj.execute = False
 
@@ -335,7 +330,7 @@ class SCADfileBase:
         try:
             obj.execute = False
             FreeCADGui.updateGui()
-        except err:
+        except Exception as err:
             print(f"Warning {err}")
         #FreeCADGui.Selection.addSelection(obj)
 
@@ -368,7 +363,6 @@ class SCADfileBase:
 
 
     def createGeometry(self, obj):
-        import FreeCAD, Part
         print("create Geometry")    #def getSource(self):
         print("Do not process SCAD source on Document recompute")
         return
@@ -390,37 +384,37 @@ class SCADfileBase:
     #        print(f"Shape is None")
 
 def createSCADObject(title, createOption, objectName, filename):
-	from PySide import QtGui, QtCore
-	from freecad.OpenSCAD_Ext.core.QtSCAD_Base import SCADObject_Options
+    from PySide import QtGui
+    from freecad.OpenSCAD_Ext.core.QtSCAD_Base import SCADObject_Options
 	#pathText = os.path.splitext(os.path.basename(filename))
 	#objectName  = pathText[0]
-	doc = FreeCAD.ActiveDocument
-	if doc is None:
-		doc = FreeCADGui.newDocument(objectName)
+    doc = FreeCAD.ActiveDocument
+    if doc is None:
+        doc = FreeCADGui.newDocument(objectName)
 
-	QtGui.QGuiApplication.setOverrideCursor(QtGui.Qt.ArrowCursor)
-	dialog = SCADObject_Options(title, objectName, createOption, parent=None)
-	result = dialog.exec_()
-	QtGui.QGuiApplication.restoreOverrideCursor()
-	if result == QtGui.QDialog.Accepted:
-		print(f"Result {dialog.result}")
-		print(f"Action")
-		options = dialog.getValues()
-		print(f"Options {options}")
+    QtGui.QGuiApplication.setOverrideCursor(QtGui.Qt.ArrowCursor)
+    dialog = SCADObject_Options(title, objectName, createOption, parent=None)
+    result = dialog.exec_()
+    QtGui.QGuiApplication.restoreOverrideCursor()
+    if result == QtGui.QDialog.Accepted:
+        print(f" Action Result {dialog.result}")
+        options = dialog.getValues()
+        print(f"Options {options}")
 
 		# Create SCAD Object
-		obj = doc.addObject("Part::FeaturePython", objectName)
+        # 
+        obj = doc.addObject("Part::FeaturePython", objectName)
 		#
 		# SCADfileBase(obj, name, filename, mode='Mesh', fnmax=16, timeout=30)
-		scadObj = SCADfileBase(obj, \
+        SCADfileBase(obj, \
 			os.path.splitext(os.path.basename(filename))[0],
  			filename, \
 			options[0], \
 			options[1], \
 			options[2])
 		#print(dir(scadObj))
-		ViewSCADProvider(obj.ViewObject)
-
+        write_log("Info","ViewSCADProvider")
+        ViewSCADProvider(obj.ViewObject)
 
 class ViewSCADProvider:
     def __init__(self, obj):
