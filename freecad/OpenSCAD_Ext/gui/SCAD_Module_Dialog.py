@@ -3,11 +3,11 @@ import FreeCAD
 from PySide import QtWidgets, QtCore
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
+from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
 from freecad.OpenSCAD_Ext.objects.SCADModuleObject import (
-    SCADfileBase,
-    SCADModuleObject,
+    SCADModuleObject, 
+    ViewSCADProvider
 )
-
 
 class SCAD_Module_Dialog(QtWidgets.QDialog):
     """
@@ -263,6 +263,11 @@ class SCAD_Module_Dialog(QtWidgets.QDialog):
 
         return args
 
+    def _clean_module_name(self, name: str) -> str:
+        if name.endswith("()"):
+            return name[:-2]
+        return name
+
     def _create_scad_module(self):
         if not self.selected_module:
             return
@@ -276,11 +281,14 @@ class SCAD_Module_Dialog(QtWidgets.QDialog):
         if doc is None:
             doc = FreeCAD.newDocument("SCAD_Import")
 
-        module_name = self.selected_module.name
-        source_file = self.meta.sourceFile
+        module_name = self._clean_module_name(self.selected_module.name)
+        baseName = module_name + ".scad"
+        source_dir = BaseParams.getScadSourcePath()
+        source_file = os.path.join(source_dir, baseName)
 
         obj = doc.addObject("Part::FeaturePython", module_name)
         obj.Label = module_name
+        ViewSCADProvider(obj.ViewObject)
 
         args = self._collect_args()
 
