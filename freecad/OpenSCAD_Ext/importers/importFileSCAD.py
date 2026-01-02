@@ -40,12 +40,12 @@ if open.__module__ in ['__builtin__', 'io']:
 from PySide import QtGui, QtCore
 
 #import importCSG
-#from freecad.OpenSCAD_Ext.core.OpenSCADObjects import \
+#from freecad.OpenSCAD_Ext.objects.OpenSCADObjects import \
 #       SCADfileBase, \
 #       ViewSCADProvider
 
 from freecad.OpenSCAD_Ext.importers.importAltCSG import processCSG
-from freecad.OpenSCAD_Ext.core.SCADObject import createSCADObject
+from freecad.OpenSCAD_Ext.objects.SCADObject import createSCADObject
 
 params = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD")
 printverbose = params.GetBool('printverbose',False)

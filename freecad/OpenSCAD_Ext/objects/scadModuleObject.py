@@ -41,43 +41,51 @@ def build_arg_assignments(obj, module):
     write_log("Info", f"Generated SCAD arguments: {result}")
     return result
 
+import os
 
 def generate_scad_import_lines(meta):
     """
-    Generate SCAD import lines for a module.
+    Generate SCAD import lines.
 
     Priority:
       1. comment_includes + includes → include <...>
-      2. none found → use <./libs/utilities.scad> (for OpenFlexure)
+      2. none found → use <./<library_root>/.../file.scad>
     """
     lines = []
 
-    # Strip // from comment_includes
-    comment_includes = [line.lstrip("/ ").strip() for line in getattr(meta, "comment_includes", [])]
+    # --- Clean comment includes (strip //) ---
+    comment_includes = [
+        line.lstrip("/ ").strip()
+        for line in getattr(meta, "comment_includes", [])
+    ]
 
-    # Merge and dedupe includes
+    # --- Merge and dedupe includes ---
     all_includes = comment_includes + getattr(meta, "includes", [])
     seen = set()
     includes = []
     for inc in all_includes:
-        if inc not in seen:
+        if inc and inc not in seen:
             seen.add(inc)
             includes.append(inc)
 
+    # --- Case 1: explicit includes exist ---
     if includes:
-        # Decide style: BOSL2 uses include, OpenFlexure can use use
-        style = "include" if any("BOSL2" in i for i in includes) else "use"
         for inc in includes:
-            lines.append(f"{style} <{inc}>")
-    else:
-        # Fallback for OpenFlexure: strip path before 'libs/' and prepend './'
-        parts = meta.sourceFile.replace(os.sep, "/").split("/libs/", 1)
-        if len(parts) == 2:
-            rel_path = "./libs/" + parts[1]
-        else:
-            rel_path = "./" + os.path.basename(meta.sourceFile)
-        lines.append(f"use <{rel_path}>")
+            lines.append(f"include <{inc}>")
+        return lines
 
+    # --- Case 2: fallback → library-relative use ---
+    src = meta.sourceFile.replace(os.sep, "/")
+
+    # Heuristic: libraries/<libname>/...
+    parts = src.split("/libraries/", 1)
+    if len(parts) == 2:
+        rel_path = "./" + parts[1]
+    else:
+        # Fallback: just the filename
+        rel_path = "./" + os.path.basename(src)
+
+    lines.append(f"use <{rel_path}>")
     return lines
 
 
