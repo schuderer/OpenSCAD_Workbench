@@ -23,40 +23,47 @@ def scad_value(val):
         return f'"{val}"'
     return val
 
-
 def build_arg_assignments(obj, module):
     """
     Build a comma-separated string of argument assignments for a SCAD module.
+    obj    : FreeCAD object with PropertiesList
+    module : SCADModule meta object (has module.arguments list of SCADArgument)
     """
     assignments = []
+
     for arg in getattr(module, "arguments", []):
         name = arg.name
+
         if name not in obj.PropertiesList:
             continue
+
         val = getattr(obj, name, None)
         if val in ("", None):
             continue
+
         assignments.append(f"{name}={scad_value(val)}")
+
     result = ", ".join(assignments)
     write_log("Info", f"Generated SCAD arguments: {result}")
     return result
 
-
 def generate_scad_import_lines(meta):
     """
-    Generate SCAD import lines for a module.
+    Generate SCAD import lines.
 
     Priority:
       1. comment_includes + includes → include <...>
-      2. none found → use <./libs/utilities.scad> (for OpenFlexure)
+      2. none found → use <source file>
     """
     lines = []
 
-    # Strip // from comment_includes
-    comment_includes = [line.lstrip("/ ").strip() for line in getattr(meta, "comment_includes", [])]
-
     # Merge and dedupe includes
-    all_includes = comment_includes + getattr(meta, "includes", [])
+    all_includes = []
+    for inc in meta.comment_includes:
+        all_includes.append(inc)
+    for inc in meta.includes:
+        all_includes.append(inc)
+
     seen = set()
     includes = []
     for inc in all_includes:
@@ -65,21 +72,12 @@ def generate_scad_import_lines(meta):
             includes.append(inc)
 
     if includes:
-        # Decide style: BOSL2 uses include, OpenFlexure can use use
-        style = "include" if any("BOSL2" in i for i in includes) else "use"
         for inc in includes:
-            lines.append(f"{style} <{inc}>")
+            lines.append(f"include <{inc}>")
     else:
-        # Fallback for OpenFlexure: strip path before 'libs/' and prepend './'
-        parts = meta.sourceFile.replace(os.sep, "/").split("/libs/", 1)
-        if len(parts) == 2:
-            rel_path = "./libs/" + parts[1]
-        else:
-            rel_path = "./" + os.path.basename(meta.sourceFile)
-        lines.append(f"use <{rel_path}>")
+        lines.append(f"use <{meta.baseName}>")
 
     return lines
-
 
 def write_scad_file(obj, module, meta):
     """
@@ -91,7 +89,6 @@ def write_scad_file(obj, module, meta):
     args_values = build_arg_assignments(obj, module)
 
     try:
-        os.makedirs(os.path.dirname(obj.Proxy.sourceFile), exist_ok=True)
         with open(obj.Proxy.sourceFile, "w", encoding="utf-8") as fp:
             write_log("Info", f"Writing SCAD file: {obj.Proxy.sourceFile}")
 
@@ -186,6 +183,7 @@ class SCADModuleObject(SCADfileBase):
     # -----------------------------
     # SCADModuleObject methods
     # -----------------------------
+
     def clean_module_name(self, name: str) -> str:
         return name[:-2] if name.endswith("()") else name
 
