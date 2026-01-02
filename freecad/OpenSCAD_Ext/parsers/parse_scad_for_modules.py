@@ -61,62 +61,68 @@ def _parse_header_comment(lines):
     return _unique_preserve_order(comment_includes)
 
 def _parse_modules(lines):
+    """
+    Parse modules from SCAD lines.
+    Supports BOSL2-style headers and OpenFlexure-style modules.
+    """
     modules = []
-    module_pattern = re.compile(r'^\s*module\s+(\w+)\s*\((.*?)\)')
-    
+    module_pattern = re.compile(r'^\s*module\s+(\w+)\s*\((.*?)\)\s*{?')
+
     current_module = None
-    in_module_comment = False
-    
+    module_comment_buffer = []
+
     for line in lines:
         line_strip = line.strip()
 
-        # Start of module comment
-        if line_strip.startswith("// Module:"):
-            module_name = line_strip.split(":",1)[1].strip()
-            current_module = SCADModule(module_name)
-            modules.append(current_module)
-            in_module_comment = True
+        # Collect preceding comments
+        if line_strip.startswith("//"):
+            module_comment_buffer.append(line_strip.lstrip("//").strip())
             continue
 
-        # Inside module comment
-        if in_module_comment:
-            if line_strip.startswith("// Module:") or line_strip.startswith("module "):
-                in_module_comment = False
-            else:
-                # Description
-                if line_strip.startswith("// Description:") and current_module:
-                    current_module.description = line_strip.split(":",1)[1].strip()
-                # Synopsis
-                if line_strip.startswith("// Synopsis:") and current_module:
-                    current_module.synopsis = line_strip.split(":",1)[1].strip()
-                # Usage
-                if line_strip.startswith("// Usage:") and current_module:
-                    usage_line = line_strip.split(":",1)[1].strip()
-                    current_module.usage.append(usage_line)
-                # Arguments in comment
-                arg_match = re.match(r'//\s*(\w+)\s*=\s*(.*?)(?:\s*\(Default:\s*(.*?)\))?\s*(?:$|//)', line_strip)
-                if arg_match and current_module:
-                    arg_name = arg_match.group(1)
-                    default = arg_match.group(3) or None
-                    desc = arg_match.group(2).strip()
-                    # avoid duplicates
-                    if not any(a.name == arg_name for a in current_module.arguments):
-                        current_module.arguments.append(SCADArgument(arg_name, default, desc))
-        
-        # Fallback: parse module definition line for arguments
+        # Match module definition
         m = module_pattern.match(line)
-        if m and current_module:
+        if m:
+            module_name = m.group(1)
             arg_str = m.group(2)
+
+            current_module = SCADModule(module_name)
+            modules.append(current_module)
+
+            # Process arguments
             arg_pairs = [a.strip() for a in arg_str.split(",") if a.strip()]
             for arg_pair in arg_pairs:
                 if "=" in arg_pair:
-                    name, default = [s.strip() for s in arg_pair.split("=",1)]
-                    if not any(a.name == name for a in current_module.arguments):
-                        current_module.arguments.append(SCADArgument(name, default, ""))
+                    name, default = [s.strip() for s in arg_pair.split("=", 1)]
+                    current_module.arguments.append(SCADArgument(name, default, ""))
                 else:
-                    name = arg_pair
-                    if not any(a.name == name for a in current_module.arguments):
-                        current_module.arguments.append(SCADArgument(name, None, ""))
+                    current_module.arguments.append(SCADArgument(arg_pair, None, ""))
+
+            # Attach comment buffer as description / BOSL2 metadata
+            if module_comment_buffer:
+                for cmt in module_comment_buffer:
+                    # BOSL2-style parsing
+                    cmt_lower = cmt.lower()
+                    if cmt_lower.startswith("module:"):
+                        current_module.name = cmt.split(":",1)[1].strip()
+                    elif cmt_lower.startswith("description:"):
+                        current_module.description = cmt.split(":",1)[1].strip()
+                    elif cmt_lower.startswith("synopsis:"):
+                        current_module.synopsis = cmt.split(":",1)[1].strip()
+                    elif cmt_lower.startswith("usage:"):
+                        usage_line = cmt.split(":",1)[1].strip()
+                        current_module.usage.append(usage_line)
+                    else:
+                        # fallback: append remaining lines to description
+                        if current_module.description:
+                            current_module.description += " " + cmt
+                        else:
+                            current_module.description = cmt
+                module_comment_buffer = []
+
+        else:
+            # Not a module, reset comment buffer if non-comment line
+            module_comment_buffer = []
+
     return modules
 
 

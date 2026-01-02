@@ -171,7 +171,8 @@ class NewSCADFile_Class(BaseParams):
         # change SCADfileBase to accept single options call ?
         #
         scadName = options[0]
-        sourceFile = os.path.join(BaseParams.getScadSourcePath(), scadName)
+        scadBase = scadName + ".scad"
+        sourceFile = os.path.join(BaseParams.getScadSourcePath(), scadBase)
         scadObj = SCADfileBase(obj, scadName, sourceFile, \
                   options[1], \
                   options[2], \

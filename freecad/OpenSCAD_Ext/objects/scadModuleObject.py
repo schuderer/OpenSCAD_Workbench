@@ -47,44 +47,87 @@ def build_arg_assignments(obj, module):
     write_log("Info", f"Generated SCAD arguments: {result}")
     return result
 
+def generate_scad_import_lines(meta):
+    """
+    Generate SCAD import lines.
+
+    Priority:
+      1. comment_includes + includes → include <...>
+      2. none found → use <source file>
+    """
+    lines = []
+
+    # Merge and dedupe includes
+    all_includes = []
+    for inc in meta.comment_includes:
+        all_includes.append(inc)
+    for inc in meta.includes:
+        all_includes.append(inc)
+
+    seen = set()
+    includes = []
+    for inc in all_includes:
+        if inc not in seen:
+            seen.add(inc)
+            includes.append(inc)
+
+    if includes:
+        for inc in includes:
+            lines.append(f"include <{inc}>")
+    else:
+        lines.append(f"use <{meta.baseName}>")
+
+    return lines
+
+
 def write_scad_file(obj, module, meta):
     """
     Write a SCAD file from a FreeCAD object and SCAD module meta.
+
     Writes:
-        1. Comment includes
-        2. Regular includes
-        3. Module declaration (module name(args);)
+        1. Comment includes (as comments)
+        2. Import lines (include/use)
+        3. Module declaration (comment only)
         4. Module call with current obj parameter values
     """
-    module_name = module.name.strip("()")  # Clean module name
-    args_names = [arg.name for arg in module.arguments]  # Names only
-    args_declaration = ", ".join(args_names)             # arg1, arg2, ...
-    args_values = build_arg_assignments(obj, module)     # arg1=val1, arg2=val2, ...
+    module_name = module.name.strip("()")
+    args_names = [arg.name for arg in module.arguments]
+    args_declaration = ", ".join(args_names)
+    args_values = build_arg_assignments(obj, module)
 
     try:
         with open(obj.Proxy.sourceFile, "w", encoding="utf-8") as fp:
             write_log("Info", f"Writing SCAD file: {obj.Proxy.sourceFile}")
 
-            # Comment includes first
+            # --- Comment includes (BOSL2 header style) ---
             for inc in meta.comment_includes:
-                print(f"include <{inc}>;", file=fp)
+                print(f"// include <{inc}>", file=fp)
 
-            # Then normal includes
-            for inc in meta.includes:
-                print(f"include <{inc}>;", file=fp)
+            if meta.comment_includes:
+                print("", file=fp)
 
-            print("", file=fp)  # Blank line for readability
+            # --- Real import lines (include OR auto-use) ---
+            for line in generate_scad_import_lines(meta):
+                print(f"{line};", file=fp)
 
-            # Module declaration as Comment (no values)
+            print("", file=fp)
+
+            # --- Module declaration as comment ---
             print(f"// module {module_name}({args_declaration});", file=fp)
 
-            # Module call with current object argument values
+            # --- Module call with values ---
             print(f"{module_name}({args_values});", file=fp)
 
-            write_log("Info", f"Module '{module_name}' written with args: {args_values}")
+            write_log(
+                "Info",
+                f"Module '{module_name}' written with args: {args_values}"
+            )
 
     except Exception as e:
-        write_log("Error", f"Failed to write SCAD file {obj.Proxy.sourceFile}: {e}")
+        write_log(
+            "Error",
+            f"Failed to write SCAD file {obj.Proxy.sourceFile}: {e}"
+        )
 
 def _add_argument_property(obj, arg):
     """
