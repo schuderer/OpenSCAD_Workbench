@@ -416,6 +416,12 @@ def createSCADObject(title, createOption, objectName, filename):
 		#print(dir(scadObj))
         write_log("Info","ViewSCADProvider")
         ViewSCADProvider(obj.ViewObject)
+        if hasattr(obj, 'Proxy'):
+            if hasattr(obj, "editFile"):
+                obj.Proxy.editFile(filename)
+            elif hasattr(obj, "executeFunc"):
+                obj.Proxy.executeFunction(obj)
+        return obj
 
 class ViewSCADProvider:
     def __init__(self, obj):
