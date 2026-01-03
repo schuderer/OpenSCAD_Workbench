@@ -1,0 +1,1 @@
+In openflexure library directory hull contains openflexure scad files that use hull.
