@@ -72,11 +72,6 @@ def setup_importers():
 
 def setup_exporters():
     # GUI-only
-    try:
-        import FreeCADGui
-    except ImportError:
-        return
-
     if getattr(FreeCAD, "_OpenSCAD_Ext_exporters_registered", False):
         FreeCAD.Console.PrintMessage("[OpenSCAD_Ext] Exporters already registered\n")
         return
@@ -95,37 +90,6 @@ def setup_exporters():
 
     FreeCAD.Console.PrintMessage("[OpenSCAD_Ext] Exporters registered.\n")
     FreeCAD._OpenSCAD_Ext_exporters_registered = True
-
-# ------------------------
-#  Exporter registration
-# ------------------------
-
-def setup_exporters():
-    # GUI-only
-    try:
-        import FreeCADGui
-    except ImportError:
-        return
-
-    if getattr(FreeCAD, "_OpenSCAD_Ext_exporters_registered", False):
-        FreeCAD.Console.PrintMessage("[OpenSCAD_Ext] Exporters already registered\n")
-        return
-
-    EXPORTER_BASE = __name__ + ".exporters"
-
-    FreeCAD.addExportType(
-        "External OpenSCAD Workbench : OpenSCAD (*.scad)",
-        f"{EXPORTER_BASE}.exportSCAD"
-    )
-
-    FreeCAD.addExportType(
-        "External OpenSCAD Workbench : CSG (*.csg)",
-        f"{EXPORTER_BASE}.exportALTCSG"
-    )
-
-    FreeCAD.Console.PrintMessage("[OpenSCAD_Ext] Exporters registered.\n")
-    FreeCAD._OpenSCAD_Ext_exporters_registered = True
-
 
 # ------------------------
 #  Run registration
