@@ -213,6 +213,8 @@ def parse(obj, src):
     #obj.setEditorMode("text",2)
 
 
+
+
 class SCADfileBase:
     def __init__(self, obj, scadName, sourceFile, mode='Mesh', fnmax=16, timeout=30, keep=False):
         super().__init__()

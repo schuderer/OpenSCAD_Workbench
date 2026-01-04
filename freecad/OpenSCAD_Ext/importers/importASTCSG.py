@@ -103,7 +103,6 @@ def insert(filename,docname):
     "called when freecad imports a file"
     global doc
     global pathName
-    groupname = os.path.splitext(os.path.basename(filename))[0]
     try:
         doc=FreeCAD.getDocument(docname)
     except NameError:
