@@ -4,6 +4,7 @@ import Mesh
 import tempfile
 import os
 
+
 from FreeCAD import Vector
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 from freecad.OpenSCAD_Ext.core.OpenSCADUtils import process_ObjectsViaOpenSCADShape
@@ -14,7 +15,7 @@ from .ast_nodes import (
     Hull, Minkowski,
     Group, MultMatrix, Translate, Rotate, Scale
 )
-from .hull_minkowski import try_hull, try_minkowski
+from freecad.OpenSCAD_Ext.parsers.csg_parser.hull_minkowski import try_hull, try_minkowski
 
 
 # =========================================================
@@ -58,7 +59,8 @@ def apply_multmatrix(shape, matrix):
 
 def fallback_to_OpenSCAD(doc, node, name):
     write_log("Info", f"Fallback to OpenSCAD STL for {name}")
-    return process_ObjectsViaOpenSCADShape(doc, [node], name)
+    return
+    #return process_ObjectsViaOpenSCADShape(doc, [node], name)
 
 
 # =========================================================
@@ -66,11 +68,13 @@ def fallback_to_OpenSCAD(doc, node, name):
 # =========================================================
 
 def process_hull(doc, node):
+    write_log("Hull", "process_hull ENTERED")
     shape = try_hull(node.children)
     if shape:
         write_log("Info", "Hull converted to BRep")
         return shape
     return fallback_to_OpenSCAD(doc, node, "Hull")
+
 
 
 def process_minkowski(doc, node):
@@ -87,6 +91,8 @@ def process_minkowski(doc, node):
 
 def process_AST_node(doc, node):
     shapes = []
+
+
 
     # ---------------------------
     # Primitives

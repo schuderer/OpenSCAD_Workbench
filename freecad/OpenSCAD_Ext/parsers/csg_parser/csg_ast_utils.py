@@ -1,6 +1,6 @@
-# parse_csg_file_to_AST_nodes.py
+# csg_to_ast_utils.py
 import re
-import ast as py_ast
+import ast
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 
 # ----------------------------
@@ -24,13 +24,13 @@ from freecad.OpenSCAD_Ext.parsers.csg_parser.ast_nodes import (
 # ----------------------------
 def parse_vector(text):
     try:
-        return py_ast.literal_eval(text)
+        return ast.literal_eval(text)
     except Exception:
         return None
 
 def parse_matrix(text):
     try:
-        return py_ast.literal_eval(text)
+        return ast.literal_eval(text)
     except Exception:
         return None
 
@@ -56,7 +56,10 @@ def normalize_ast(node):
         return None
 
     if isinstance(node, TRANSPARENT_NODES) and len(node.children) == 1:
-        write_log("Info", f"Collapsing {node.node_type} → {node.children[0].node_type}")
+        write_log(
+            "Info",
+            f"Collapsing {node.node_type} → {node.children[0].node_type}"
+        )
         return node.children[0]
 
     return node
