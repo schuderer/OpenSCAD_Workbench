@@ -1,12 +1,15 @@
 import os
 from pathlib import Path
 import FreeCAD
-from PySide import QtGui, QtWidgets, QtCore
+from PySide import QtWidgets
 
 from freecad.OpenSCAD_Ext.libraries.ensure_openSCADPATH import ensure_openSCADPATH
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
 from freecad.OpenSCAD_Ext.commands.baseSCAD import BaseParams
-from freecad.OpenSCAD_Ext.commands.newSCAD import OpenSCADeditOptions
+#from freecad.OpenSCAD_Ext.commands.newSCAD import OpenSCADeditOptions
+#from freecad.OpenSCAD_Ext.objects.SCADObject import create_scad_object
+from freecad.OpenSCAD_Ext.core.create_scad_object_interactive import create_scad_object_interactive
+
 
 # parse_library_scad for dialog SCADLibraryBrowser - BSOL2 etc
 from freecad.OpenSCAD_Ext.parsers.parse_library_scad  import parse_scad_meta
@@ -46,7 +49,7 @@ class OpenSCADLibraryBrowser(QtWidgets.QDialog):
 
         self.create_btn = QtWidgets.QPushButton("Create SCAD Object")
         self.create_btn.setEnabled(False)
-        self.create_btn.clicked.connect(self.create_scad_object)
+        self.create_btn.clicked.connect(self.create_scad_object_action)
 
         self.edit_btn = QtWidgets.QPushButton("Edit Copy")
         self.edit_btn.setEnabled(False)
@@ -125,11 +128,21 @@ class OpenSCADLibraryBrowser(QtWidgets.QDialog):
                 self.scan_btn.setEnabled(True)
                 self.status.setText(f"Selected SCAD file: {full_path}")
 
-    def create_scad_object(self):
+    def create_scad_object_action(self):
         write_log("Info",f"Create SCAD Object {self.selected_scad}")
         if not self.selected_scad:
             return
+        scadName = Path(self.selected_scad).stem
 
+        create_scad_object_interactive(
+            "Create SCAD Object",
+            newFile=False, 
+            scadName=scadName,
+            sourceFile= self.selected_scad,
+        )
+
+    """
+    def create_scad_object(title, scadName, scadFile, newObject):
         QtGui.QGuiApplication.setOverrideCursor(QtGui.Qt.ArrowCursor)
         dialog = OpenSCADeditOptions(
             scadName=self.selected_scad,
@@ -150,7 +163,7 @@ class OpenSCADLibraryBrowser(QtWidgets.QDialog):
         scadObj = dialog.create_from_dialog(scadName)
         if scadObj:
             scadObj.editFile(sourceFile)
-
+    """
 
     def edit_copy(self):
         if not self.selected_scad:
@@ -199,4 +212,3 @@ class OpenSCADLibraryBrowser(QtWidgets.QDialog):
         except Exception as e:
             write_log("Error", f"Module scan failed: {e}")
             QtWidgets.QMessageBox.critical(self, "Scan Modules", f"Error scanning modules:\n{e}")
-
