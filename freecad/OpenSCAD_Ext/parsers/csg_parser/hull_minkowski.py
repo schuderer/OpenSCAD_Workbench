@@ -1,8 +1,10 @@
 import Part
 
 from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
-from freecad.OpenSCAD_Ext.logger.Workbench_logger import write_log
-from freecad.OpenSCAD_Ext.core.OpenSCADUtils import process_ObjectsViaOpenSCADShape
+from freecad.OpenSCAD_Ext.core.ast_utils import flatten_ast_node
+#from freecad.OpenSCAD_Ext.core.OpenSCADUtils import process_ObjectsViaOpenSCADShape
+from freecad.OpenSCAD_Ext.core.OpenSCADUtils import callopenscadmeshstring
+
 
 # -----------------------------
 # try_hull
@@ -22,9 +24,15 @@ def try_hull(stack):
         return None
     shape1 = stack.pop()
     shape2 = stack.pop()
-    write_log("Hull",f"Shapae 1 {shape1.node_type} {shape2.node_type}")
+    write_log("Hull",f"Shape 1 {shape1.node_type} shape 2 {shape2.node_type}")
     node_types = [getattr(n, "node_type", str(type(n))) for n in stack]
     write_log("Hull", f"try_hull: nodes in stack: {node_types}")
+    print(f"Shape1 {shape1.node_type} {shape1.params}")
+    print(dir(shape1))
+
+    print(f"Shape2 {shape2.node_type} {shape2.params}")
+    print(dir(shape2))
+    
     return None
 
     # Example: convex hull of last two objects
@@ -60,11 +68,15 @@ def process_hull(doc, node):
         write_log("Info", "Hull converted to BRep")
         return shape
 
+    #def flatten_ast_node(node, indent=0, _visited=None):
+
+    scadstr = flatten_ast_node(node, indent=4)
     # Fallback to OpenSCAD processing (will just log for now)
     write_log("HULL","Hull not handled")
     write_log("HULL","WILL NEED TO SEND TO OPENSCAD for now just Retun")
+    callopenscadmeshstring(scadstr)
     return
-    return process_ObjectsViaOpenSCADShape(doc, [node], "Hull")
+    #return process_ObjectsViaOpenSCADShape(doc, [node], "Hull")
 
 
 
