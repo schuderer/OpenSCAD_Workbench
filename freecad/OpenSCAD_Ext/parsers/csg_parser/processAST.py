@@ -86,7 +86,7 @@ def stl_to_shape(stl_path, tolerance=0.05):
     """
     Import STL into FreeCAD and convert to Part.Shape
     """
-    write_log("AST_Minkowski", f"Importing STL and converting to Part.Shape: {stl_path}")
+    write_log("AST_Hull:Minkowski", f"Importing STL and converting to Part.Shape: {stl_path}")
     mesh_obj = Mesh.Mesh(stl_path)
     shape = Part.Shape()
     shape.makeShapeFromMesh(mesh_obj.Topology, tolerance)
@@ -102,8 +102,7 @@ def fallback_to_OpenSCAD(node, operation_type="Hull"):
     stl_file = generate_stl_from_scad(scad_str)
     shape = stl_to_shape(stl_file)
     return shape
-
-
+    
 
 # -------------------------
 # High-level AST processing
