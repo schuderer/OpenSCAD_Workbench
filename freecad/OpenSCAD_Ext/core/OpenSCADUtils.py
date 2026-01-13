@@ -150,9 +150,6 @@ def newtempfilename():
         count+=1
         yield formatstr % (os.getpid(),int(time.time()*100) % 1000000,count)
 
-tempfilenamegen=newtempfilename()
-
-from PySide import QtCore, QtGui
 
 def errorDialog(msg):
     # Create a simple dialog QMessageBox
@@ -340,6 +337,8 @@ def callopenscadstring(scadstr,outputext='csg',check_syntax=False):
          keepname=True, check_syntax=check_syntax)
     os.unlink(inputfilename)
     return outputfilename
+
+
 
 
 def reverseimporttypes():
