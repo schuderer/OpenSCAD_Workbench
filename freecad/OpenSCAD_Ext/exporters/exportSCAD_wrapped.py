@@ -30,31 +30,29 @@ __title__ = "FreeCAD OpenSCAD Workbench - CSG exporter Version"
 __author__ = "Keith Sloan <keith@sloan-home.co.uk>"
 __url__ = ["http://www.sloan-home.co.uk/Export/Export.html"]
 
-from typing import Iterable, Sequence
-
-import FreeCAD
 import re
 from contextlib import contextmanager
 from builtins import open as pyopen
+from typing import Sequence
+
+import FreeCAD
+import Part
 
 if FreeCAD.GuiUp:
     gui = True
 else:
     gui = False
 
-EPSILON = 1e-7
+SIGNIFICANT_DIGITS = 7  # Max number of decimals of floats in OpenSCAD code
+EPSILON = 10**(-SIGNIFICANT_DIGITS)   # A tolerance to use in comparisons. Any two values closer than that are seen as equal.
 PI = 3.1415926536
-NUM_DECIMALS = 8
 
 #***************************************************************************
-# Tailor following to your requirements ( Should all be strings )          *
-#fafs = '$fa = 12, $fs = 2'
-#convexity = 'convexity = 10'
 params = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD")
 fa = params.GetFloat('exportFa', 12.0)
 fs = params.GetFloat('exportFs', 2.0)
 conv = params.GetInt('exportConvexity', 10)
-
+# TODO: parameters for SIGNIFICANT_DIGITS and other decisions
 
 #***************************************************************************
 # Radius values not fixed for value apart from cylinder & Cone
@@ -131,7 +129,7 @@ def fstr(x):
     if hasattr(x, '__len__'):
         return vecstr(x)
 
-    x = round(x, NUM_DECIMALS)
+    x = round(x, SIGNIFICANT_DIGITS)
     if x == int(x):
         return str(int(x))
     else:
@@ -222,11 +220,6 @@ def vector2d(v):
     return [v[0], v[1]]
 
 
-# def vertices_to_polygon(vertices):
-#     pointstr = ', '.join(['[%f, %f]' % tuple(vector2d(v.Point)) for v in vertices])
-#     return 'polygon(points=[%s], paths=undef, convexity=1);}' % pointstr
-
-
 def shape2polyhedron(shape):
     import MeshPart
     return mesh2polyhedron(MeshPart.meshFromShape(Shape=shape, Deflection=params.GetFloat('meshdeflection', 0.0)))
@@ -288,7 +281,7 @@ def process_object(write, ob):
                 start = -a1
                 angle = a1 - (a2 if a2 > a1 else a2 + 360)
                 write("\n // constructing a circle segment\n")  # TODO: make sector an openscad module
-                write(f" projection(cut=true) rotate_extrude(angle={fstr(angle)}, start={fstr(start)}) square([{fstr(r2)}, 1]);\n")
+                write(f" projection(cut=true) rotate_extrude(angle={fstr(angle)}, start={fstr(start)}) square([{fstr(r2)}, 0.0001]);\n")
 
     elif ob.TypeId == "Part::Prism":
         f = fstr(ob.Polygon)
@@ -363,10 +356,50 @@ def process_object(write, ob):
         # TODO: 2D objects (from sketches or other) can also exist without extrusions in FreeCAD and OpenSCAD!
         elif ob.Base.TypeId == "Sketcher::SketchObject":  # TODO use e.g. isinstance(Part.Sketch) everywhere?
             wires = [w for w in ob.Base.Shape.Wires if w.isClosed()]
-            num_wires = len(wires)
-            print(f"SketchObject with {num_wires} Wires:")
+            print(f"SketchObject with {len(wires)} Wires{' (skipping '+str(len(ob.Base.Shape.Wires)-len(wires))+' non-closed Wires)' if len(ob.Base.Shape.Wires) != len(wires) else ''}:")
+            if not wires:
+                pass  # TODO: skip empty sketches, also for nested-depth extrusions
             with placement(write, ob, 0, 0, 0):  # Placement of the extrusion result
                 with placement(write, ob.Base, 0, 0, 0):  # Placement of the 2d object (sketch)
+                    # Figure out extrusion groups (solids, holes-in-solids, solids-in-holes-in-solids, ...)
+                    extrusion_groups = {}
+                    for wire, depth in zip(wires, nesting_depths(wires)):
+                        extrusion_groups.setdefault(depth, []).append(wire)  # TODO: we can probably just assume that depths are ascending without gaps, so a simple list where indices are depths should suffice
+                    extrusion_groups = [(depth, wires) for depth, wires in sorted(extrusion_groups.items())]
+                    print(f"Extrusion groups by nesting depth: {[(k, v) for k,v in extrusion_groups]}")
+                    bool_op_tree = ['union', extrusion_groups[0][1]]  # Start with initial solid extrusion (nesting depth 0)
+                    for depth, curr_wires in extrusion_groups[1:]:
+                        if depth % 2 == 0:
+                            # Solid
+                            bool_op_tree = ["union", bool_op_tree, curr_wires]
+                        else:
+                            # Hole
+                            bool_op_tree = ["difference", bool_op_tree, curr_wires]
+                    print(bool_op_tree)
+
+                    # Transform from tree to queue (TODO: temporarily -- we'll use an AST later)
+                    stack = [bool_op_tree]
+                    bool_op_queue = []
+                    while stack:
+                        curr = stack.pop()
+                        if curr[0] == "union":
+                            if len(curr) == 2:  # simplify single-object operations (should only happen with unions)
+                                stack.append(curr[1])
+                            else:
+                                bool_op_queue.append("union")
+                                stack.append("/union")
+                                for arg in reversed(curr[1:]):
+                                    stack.append(arg)
+                        elif curr[0] == "difference":
+                            bool_op_queue.append("difference")
+                            stack.append("/difference")
+                            for arg in reversed(curr[1:]):
+                                stack.append(arg)
+                        else:  # wires or scope ends
+                            bool_op_queue.append(curr)
+                    print(bool_op_queue)
+
+
                     inv_sketch_placement = ob.Base.Placement.inverse()
                     def v_local(v):  # world -> sketch local
                         return inv_sketch_placement.multVec(v)
@@ -374,104 +407,113 @@ def process_object(write, ob):
                     def d_local(d):  # world direction -> sketch local direction (no translation)
                         return inv_sketch_placement.Rotation.multVec(d)
 
-                    center = ', center=true' if ob.Symmetric else ''
-                    extrVec = '' if dirMode == 'Normal' else f", v={vecstr(d_local(extrDir))}"
-                    if practically_equal(lenRev, 0):
-                        write(f"linear_extrude(height={fstr(lenFwd)}{extrVec}, slices=2{center}, convexity=$convexity) {{\n")
-                    else:
-                        lenTotal = lenFwd + lenRev
-                        write(f"translate([0, 0, {fstr(-lenRev)}])  // LengthRev={fstr(lenRev)}, LengthFwd={fstr(lenFwd)}{' (reversed)' if ob.Reversed else ''}\n")
-                        write(f" linear_extrude(height={fstr(lenTotal)}{extrVec}, slices=2{center}, convexity=$convexity) {{\n")
-
-                    write(f"// {ob.Base.Label}\n")
-
-                    for wire in wires:
-                        if not wire.isClosed():
-                            print("Skipping non-closed Wire")
+                    # Walk through operations (TODO: will probably be scrapped as we'll work with an AST)
+                    for operation in bool_op_queue:
+                        if operation == "union":
+                            write("union() {\n")
                             continue
-
-                        # Closed shape consisting of single edge (circle, ellipse, spline(?))
-                        if len(wire.Edges) == 1 and wire.Edges[0].isClosed():
-                            edge = wire.Edges[0]
-                            curve = edge.Curve
-
-                            if curve.TypeId == "Part::GeomCircle":  # TODO: isinstance(Part.Circle)?
-                                center = v_local(curve.Center)
-                                radius = curve.Radius
-                                axis = d_local(curve.Axis)  # TODO: can we safely ignore the axis? Seems to be [0,0,1] (Sketch normal)
-                                if not practically_equal(center, 0):
-                                    write(f"translate({vecstr(center)}) ")
-                                write(f"circle({fstr(radius)});\n")
-
-                            elif curve.TypeId == "Part::GeomEllipse":
-                                center = v_local(curve.Center)
-                                majorRadius = curve.MajorRadius
-                                minorRadius = curve.MinorRadius
-                                axis = d_local(curve.Axis)  # TODO: can we safely ignore the axis? Seems to be [0,0,1] (Sketch normal)
-                                if not practically_equal(center, 0):
-                                    write(f"translate({vecstr(center)}) ")
-                                if practically_equal(majorRadius, minorRadius):
-                                    write(f"circle({fstr(majorRadius)});\n")
-                                else:
-                                    # TODO: How to deal with rotation?
-                                    local_x_axis = FreeCAD.Base.Vector(d_local(curve.XAxis))
-                                    local_focus1 = FreeCAD.Base.Vector(d_local(curve.Focus1))
-                                    local_focus2 = FreeCAD.Base.Vector(d_local(curve.Focus2))
-                                    angle = local_x_axis.getAngle(FreeCAD.Base.Vector([1, 0, 0]))*180/PI
-                                    # angle = local_x_axis.getAngle(FreeCAD.Base.Vector([-1, 0, 0]))*180/PI
-                                    if not practically_equal(angle, 0) and not practically_equal(angle, 180) and not practically_equal(angle, 360):
-                                        write(f"rotate(a=[0, 0, {fstr(angle)}]) ")
-                                    write(f"resize([{fstr(2*majorRadius)}, {fstr(2*minorRadius)}]) ")
-                                    write(f"circle({fstr(majorRadius)});  // Ellipse\n")
-
-                            else:
-                                # Another type of closed curve
-                                print("Skipping unknown closed single-edge curve")
-                                pass
-                                # TODO: adapt:
-                                # # Generic fallback: transform curve by inverse placement
-                                # try:
-                                #     c2 = c.copy()
-                                #     c2.transform(inv.toMatrix())
-                                #     out.append(("closed_curve", c2))
-                                # except Exception:
-                                #     out.append(("closed_curve", c))
-                                # continue
-
+                        elif operation == "difference":
+                            write("difference() {\n")
+                            continue
+                        elif operation in ("/union", "/difference"):
+                            write("}\n")
+                            continue
                         else:
-                            # TODO: Wires inside other Wires should be holes (note that OpenSCAD polygons support this out of the box but do we really want to mash all geometries into one big polygon?)
-                            print("Wire extrusion:", wire)
-                            # General closed loop -> ordered vertex list
-                            pts = [v_local(e.Vertexes[0].Point) for e in wire.OrderedEdges]  # TODO: recognize curve segments and discretize them
-                            pts.append(v_local(wire.OrderedEdges[-1].Vertexes[-1].Point))
-                            if practically_equal(pts[0], pts[-1]):
-                                pts.pop()
+                            wires = operation
 
-                            if any(not practically_equal(p[2], 0) for p in pts):
-                                print("Warning: dropping third dimension of sketch wire points")
-                            pts2d = [(p[0], p[1]) for p in pts]  # TODO: What about sketches that extend into 3rd dimension? Currently we just remove z.
+                        center = ', center=true' if ob.Symmetric else ''
+                        extrusionVec = '' if dirMode == 'Normal' else f", v={vecstr(d_local(extrDir))}"
+                        if practically_equal(lenRev, 0):
+                            write(f"linear_extrude(height={fstr(lenFwd)}{extrusionVec}, slices=2{center}, convexity=$convexity) {{\n")
+                        else:
+                            lenTotal = lenFwd + lenRev
+                            write(f"translate([0, 0, {fstr(-lenRev)}])  // LengthRev={fstr(lenRev)}, LengthFwd={fstr(lenFwd)}{' (reversed)' if ob.Reversed else ''}\n")
+                            write(f" linear_extrude(height={fstr(lenTotal)}{extrusionVec}, slices=2{center}, convexity=$convexity) {{\n")
 
-                            # Recognize rectangle and write it instead of polygon. (TODO next step: rotated rectangle)
-                            if len(pts2d) == 4 and (
-                                (practically_equal(pts2d[0][0], pts2d[1][0]) and not practically_equal(pts2d[0][1], pts2d[1][1])) and
-                                (not practically_equal(pts2d[1][0], pts2d[2][0]) and practically_equal(pts2d[1][1], pts2d[2][1])) and
-                                (practically_equal(pts2d[2][0], pts2d[3][0]) and not practically_equal(pts2d[2][1], pts2d[3][1])) and
-                                (not practically_equal(pts2d[3][0], pts2d[0][0]) and practically_equal(pts2d[3][1], pts2d[0][1]))
-                            ):
-                                origin = min(x for x,y in pts2d), min(y for x,y in pts2d)
-                                width_height = abs(pts2d[2][0] - pts2d[0][0]), abs(pts2d[1][1] - pts2d[0][1])
-                                write(f"translate({vecstr(origin)}) ")
-                                write(f" square({vecstr(width_height)});\n")
+                        write(f"// from {ob.Base.Label}\n")
+
+                        for wire in wires:
+                            # TODO on factoring out sketch: skip non-closed wires
+                            # Closed shape consisting of single edge (circle, ellipse, spline(?))
+                            if len(wire.Edges) == 1 and wire.Edges[0].isClosed():
+                                edge = wire.Edges[0]
+                                curve = edge.Curve
+
+                                if curve.TypeId == "Part::GeomCircle":  # TODO: isinstance(Part.Circle)?
+                                    center = v_local(curve.Center)
+                                    radius = curve.Radius
+                                    axis = d_local(curve.Axis)  # TODO: can we safely ignore the axis? Seems to be [0,0,1] (Sketch normal)
+                                    if not practically_equal(center, 0):
+                                        write(f"translate([{fstr(center[0])}, {fstr(center[1])}]) ")
+                                    write(f"circle({fstr(radius)});\n")
+
+                                elif curve.TypeId == "Part::GeomEllipse":
+                                    center = v_local(curve.Center)
+                                    majorRadius = curve.MajorRadius
+                                    minorRadius = curve.MinorRadius
+                                    axis = d_local(curve.Axis)  # TODO: can we safely ignore the axis? Seems to be [0,0,1] (Sketch normal)
+                                    if not practically_equal(center, 0):
+                                        write(f"translate([{fstr(center[0])}, {fstr(center[1])}]) ")
+                                    if practically_equal(majorRadius, minorRadius):
+                                        write(f"circle({fstr(majorRadius)});\n")
+                                    else:
+                                        # TODO: How to deal with rotation?
+                                        local_x_axis = FreeCAD.Base.Vector(d_local(curve.XAxis))
+                                        local_focus1 = FreeCAD.Base.Vector(d_local(curve.Focus1))
+                                        local_focus2 = FreeCAD.Base.Vector(d_local(curve.Focus2))
+                                        angle = local_x_axis.getAngle(FreeCAD.Base.Vector([1, 0, 0]))*180/PI
+                                        # angle = local_x_axis.getAngle(FreeCAD.Base.Vector([-1, 0, 0]))*180/PI
+                                        if not practically_equal(angle, 0) and not practically_equal(angle, 180) and not practically_equal(angle, 360):
+                                            write(f"rotate(a=[0, 0, {fstr(angle)}]) ")
+                                        write(f"resize([{fstr(2*majorRadius)}, {fstr(2*minorRadius)}]) ")
+                                        write(f"circle({fstr(majorRadius)});  // Ellipse\n")
+
+                                else:
+                                    # Another type of closed curve
+                                    print("Skipping unknown closed single-edge curve")
+                                    pass
+                                    # TODO: adapt:
+                                    # # Generic fallback: transform curve by inverse placement
+                                    # try:
+                                    #     c2 = c.copy()
+                                    #     c2.transform(inv.toMatrix())
+                                    #     out.append(("closed_curve", c2))
+                                    # except Exception:
+                                    #     out.append(("closed_curve", c))
+                                    # continue
+
                             else:
-                                write(f"polygon(points={vecstr(pts2d)});\n")
-                    write("}\n")
+                                print("Wire extrusion:", wire)
+                                # General closed loop -> ordered vertex list
+                                pts = [v_local(e.Vertexes[0].Point) for e in wire.OrderedEdges]  # TODO: recognize curve segments and discretize them
+                                pts.append(v_local(wire.OrderedEdges[-1].Vertexes[-1].Point))
+                                if practically_equal(pts[0], pts[-1]):
+                                    pts.pop()
+
+                                if any(not practically_equal(p[2], 0) for p in pts):
+                                    print("Warning: dropping third dimension of sketch wire points")
+                                pts2d = [(p[0], p[1]) for p in pts]  # TODO: What about sketches that extend into 3rd dimension? Currently we just remove z.
+
+                                # Recognize rectangle and write it instead of polygon. (TODO next step: rotated rectangle)
+                                if len(pts2d) == 4 and (
+                                    (practically_equal(pts2d[0][0], pts2d[1][0]) and not practically_equal(pts2d[0][1], pts2d[1][1])) and
+                                    (not practically_equal(pts2d[1][0], pts2d[2][0]) and practically_equal(pts2d[1][1], pts2d[2][1])) and
+                                    (practically_equal(pts2d[2][0], pts2d[3][0]) and not practically_equal(pts2d[2][1], pts2d[3][1])) and
+                                    (not practically_equal(pts2d[3][0], pts2d[0][0]) and practically_equal(pts2d[3][1], pts2d[0][1]))
+                                ):
+                                    origin = min(x for x,y in pts2d), min(y for x,y in pts2d)
+                                    width_height = abs(pts2d[2][0] - pts2d[0][0]), abs(pts2d[1][1] - pts2d[0][1])
+                                    write(f"translate({vecstr(origin)}) ")
+                                    write(f" square({vecstr(width_height)});\n")
+                                else:
+                                    write(f"polygon(points={vecstr(pts2d)});\n")
+                        write("}\n")
 
         elif ob.Base.Name.startswith('this_is_a_bad_idea'):  # TODO: Wut? :)
             pass
 
         else:
-            print(
-                f"Unsupported extrusion base object {ob.Base}")
+            print(f"Unsupported extrusion base object {ob.Base}")
             pass  # TODO: There should be a fallback solution
 
     elif ob.TypeId == "Part::Cut":
@@ -522,6 +564,46 @@ def process_object(write, ob):
     else:
         # TODO: Compound
         print(f"Unsupported object {ob}")
+
+# def interior_point(face):
+#     # Tessellate and take a triangle centroid (inside the face)
+#     verts, tris = face.tessellate(0.1)  # adjust deflection if needed
+#     i0, i1, i2 = tris[0]
+#     p0 = FreeCAD.Base.Vector(*verts[i0])
+#     p1 = FreeCAD.Base.Vector(*verts[i1])
+#     p2 = FreeCAD.Base.Vector(*verts[i2])
+#     return (p0 + p1 + p2) * (1.0 / 3.0)
+
+
+def face_contains(outer_face, inner_face, area_tol=EPSILON):
+    # TODO: Not that fast, add quick check with bounding box
+    common = outer_face.common(inner_face)
+    return abs(common.Area - inner_face.Area) <= area_tol
+
+
+def nesting_depths(wires):
+    # Takes an iterable of Part.Wires and returns a list of same length with their nesting depths.
+    # Non-closed wires will get a depth of zero.
+    # Note that they don't have to be in 2D space (the sketch can be tilted in world space)
+    faces = [Part.Face(w) if w.isClosed() else None for w in wires]
+    # points = [interior_point(f) if f is not None else None for f in faces]
+
+    depths = []
+    for i, fi in enumerate(faces):
+        if fi is None:
+            depths.append(0)
+            continue
+        depth = 0
+        for j, fj in enumerate(faces):
+            if i == j or fj is None:
+                continue
+            if face_contains(fj, fi):
+            # if fj.isInside(p, EPSILON, True):
+                print(f"Wire {i} is inside Wire {j}")
+                depth += 1
+        depths.append(depth)
+    print(f"Nesting depths: {[str(d)+': '+str(w.Edges[0].Curve.TypeId)+' ('+str(len(w.Edges))+')' for d, w in zip(depths, wires)]}")
+    return depths
 
 
 def export(export_list, filename):
