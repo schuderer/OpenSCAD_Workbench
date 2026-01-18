@@ -30,6 +30,7 @@ __title__ = "FreeCAD OpenSCAD Workbench - CSG exporter Version"
 __author__ = "Keith Sloan <keith@sloan-home.co.uk>"
 __url__ = ["http://www.sloan-home.co.uk/Export/Export.html"]
 
+import math
 import re
 from contextlib import contextmanager
 from builtins import open as pyopen
@@ -103,7 +104,7 @@ def writer(filename):
 #     w("\n}")
 
 
-def practically_equal(a, b):
+def practically_equal(a, b, tol=EPSILON):
     result = True
     a = tuple(a) if hasattr(a, '__len__') else (a,)  # isinstance(.., Iterable) does not work with Center
     b = tuple(b) if hasattr(b, '__len__') else (b,)
@@ -112,16 +113,16 @@ def practically_equal(a, b):
     if len(b) < len(a):
         b = b * (len(a)//len(b)+1)
     for some_a, some_b in zip(a, b):
-        result = result and abs(some_a - some_b) < EPSILON
+        result = result and abs(some_a - some_b) < tol
     return result
 
 
-def maybe_zero(x):
+def maybe_zero(x, tol=EPSILON):
     """Sanitizes floats so that almost zero becomes zero"""
     if isinstance(x, Sequence):
-        return [0 if practically_equal(item, 0) else item for item in x]
+        return [0 if practically_equal(item, 0, tol=tol) else item for item in x]
     else:
-        return 0 if practically_equal(x, 0) else x
+        return 0 if practically_equal(x, 0, tol=tol) else x
 
 
 def fstr(x):
@@ -430,7 +431,7 @@ def process_object(write, ob):
                             write(f"translate([0, 0, {fstr(-lenRev)}])  // LengthRev={fstr(lenRev)}, LengthFwd={fstr(lenFwd)}{' (reversed)' if ob.Reversed else ''}\n")
                             write(f" linear_extrude(height={fstr(lenTotal)}{extrusionVec}, slices=2{center}, convexity=$convexity) {{\n")
 
-                        write(f"// from {ob.Base.Label}\n")
+                        write(f"// from {ob.Base.Label}:\n")
 
                         for wire in wires:
                             # TODO on factoring out sketch: skip non-closed wires
@@ -457,12 +458,10 @@ def process_object(write, ob):
                                     if practically_equal(majorRadius, minorRadius):
                                         write(f"circle({fstr(majorRadius)});\n")
                                     else:
-                                        # TODO: How to deal with rotation?
                                         local_x_axis = FreeCAD.Base.Vector(d_local(curve.XAxis))
-                                        local_focus1 = FreeCAD.Base.Vector(d_local(curve.Focus1))
-                                        local_focus2 = FreeCAD.Base.Vector(d_local(curve.Focus2))
+                                        # local_focus1 = FreeCAD.Base.Vector(d_local(curve.Focus1))
+                                        # local_focus2 = FreeCAD.Base.Vector(d_local(curve.Focus2))
                                         angle = local_x_axis.getAngle(FreeCAD.Base.Vector([1, 0, 0]))*180/PI
-                                        # angle = local_x_axis.getAngle(FreeCAD.Base.Vector([-1, 0, 0]))*180/PI
                                         if not practically_equal(angle, 0) and not practically_equal(angle, 180) and not practically_equal(angle, 360):
                                             write(f"rotate(a=[0, 0, {fstr(angle)}]) ")
                                         write(f"resize([{fstr(2*majorRadius)}, {fstr(2*minorRadius)}]) ")
@@ -472,15 +471,7 @@ def process_object(write, ob):
                                     # Another type of closed curve
                                     print("Skipping unknown closed single-edge curve")
                                     pass
-                                    # TODO: adapt:
-                                    # # Generic fallback: transform curve by inverse placement
-                                    # try:
-                                    #     c2 = c.copy()
-                                    #     c2.transform(inv.toMatrix())
-                                    #     out.append(("closed_curve", c2))
-                                    # except Exception:
-                                    #     out.append(("closed_curve", c))
-                                    # continue
+                                    # TODO: discretize
 
                             else:
                                 print("Wire extrusion:", wire)
@@ -494,18 +485,49 @@ def process_object(write, ob):
                                     print("Warning: dropping third dimension of sketch wire points")
                                 pts2d = [(p[0], p[1]) for p in pts]  # TODO: What about sketches that extend into 3rd dimension? Currently we just remove z.
 
-                                # Recognize rectangle and write it instead of polygon. (TODO next step: rotated rectangle)
-                                if len(pts2d) == 4 and (
-                                    (practically_equal(pts2d[0][0], pts2d[1][0]) and not practically_equal(pts2d[0][1], pts2d[1][1])) and
-                                    (not practically_equal(pts2d[1][0], pts2d[2][0]) and practically_equal(pts2d[1][1], pts2d[2][1])) and
-                                    (practically_equal(pts2d[2][0], pts2d[3][0]) and not practically_equal(pts2d[2][1], pts2d[3][1])) and
-                                    (not practically_equal(pts2d[3][0], pts2d[0][0]) and practically_equal(pts2d[3][1], pts2d[0][1]))
-                                ):
-                                    origin = min(x for x,y in pts2d), min(y for x,y in pts2d)
-                                    width_height = abs(pts2d[2][0] - pts2d[0][0]), abs(pts2d[1][1] - pts2d[0][1])
-                                    write(f"translate({vecstr(origin)}) ")
-                                    write(f" square({vecstr(width_height)});\n")
+                                # Recognize rectangle and write it instead of polygon.
+                                if len(pts2d) == 4:
+                                    # We check whether all angles between points are 90 degrees
+                                    pt_angles = [math.degrees(math.atan2(b[1]-a[1], b[0]-a[0])) for a, b in zip([*pts2d[:-1], pts2d[-1]], [*pts2d[1:], pts2d[0]])]
+                                    print(f"{pt_angles=}")
+                                    # Note: a-b instead of b-a because otherwise, counterclockwise = neg angles (why?)
+                                    corner_angles = [(360+a-b)%360-180 for a, b in zip([*pt_angles[:-1], pt_angles[-1]], [*pt_angles[1:], pt_angles[0]])]
+                                    print(f"{corner_angles=}")
+                                    rect_angle = pt_angles[0]
+                                    if all(practically_equal(abs(a), 90, tol=0.0001) for a in corner_angles):
+                                        print("Recognized rectangle")
+                                        #        ___ p3
+                                        # p0 ---       \    Note: Orientation can be clockwise or counterclockwise!
+                                        #   \       ___ p2   ^
+                                        #    p1 ---          |
+                                        #                 -- o --> origin (we'll translate p0 from here)
+                                        #                    |
+                                        is_counterclockwise = corner_angles[0] > 0  # as in diagram above (normal case)
+                                        print(f"{'counter' if is_counterclockwise else ''}clockwise")
+                                        origin = pts2d[0]
+                                        p0x, p0y = pts2d[0]
+                                        p1x, p1y = pts2d[1]
+                                        p3x, p3y = pts2d[3]
+                                        p0p1_dist = math.sqrt((p1x-p0x)**2 + (p1y-p0y)**2)
+                                        p0p3_dist = math.sqrt((p3x-p0x)**2 + (p3y-p0y)**2)
+                                        if is_counterclockwise:
+                                            width_height = abs(p0p1_dist), abs(p0p3_dist)
+                                        else:
+                                            width_height = abs(p0p3_dist), abs(p0p1_dist)
+                                            rect_angle -= 90
+                                        print(f"{width_height=}")
+                                        # TODO: get rid of occasional +/-90 deg rotation for horizontal rects by swapping w/h and shifting rect (changing origin)
+                                        if not practically_equal(origin, (0, 0)):
+                                            write(f"translate({vecstr(origin)}) ")
+                                        if not practically_equal(rect_angle, 0):
+                                            print(f"Rotating rectangle by {rect_angle} degrees")
+                                            write(f"rotate([0, 0, {fstr(rect_angle)}])")
+                                        write(f" square({vecstr(width_height)});\n")
+                                    else:
+                                        print("Did not recognize rectangle")
+                                        write(f"polygon(points={vecstr(pts2d)});\n")
                                 else:
+                                    print("Did not recognize special 2d shape. Exporting as polygon")
                                     write(f"polygon(points={vecstr(pts2d)});\n")
                         write("}\n")
 
@@ -629,4 +651,4 @@ def export(export_list, filename):
             else:
                 print(f"{ob.Name} is invisible. Skipping")
 
-    FreeCAD.Console.PrintMessage("successfully exported" + " " + filename)
+    FreeCAD.Console.PrintMessage("Successfully exported" + " " + filename)
